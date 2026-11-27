@@ -8635,6 +8635,13 @@ svg.arrows { position: absolute; inset: 0; width: 100%; height: 100%; pointer-ev
 /* 表單 */
 dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink); width: min(520px, 94vw); padding: 14px; }
 dialog::backdrop { background: #0007; }
+#ov { width: min(720px, 96vw); }
+.ovhead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; } .ovhead .sp { flex: 1; }
+#ov table { width: 100%; border-collapse: collapse; font-size: 13px; }
+#ov th, #ov td { text-align: left; padding: 5px 4px; border-top: 1px solid var(--line); vertical-align: top; }
+#ov td small { display: block; color: var(--muted); font-size: 11px; }
+#ov .t { display: inline-block; margin: 1px 2px 1px 0; font-size: 11px; padding: 0 4px; border-radius: 3px; background: #f2a65a; color: #3a1a00; }
+#ov .none { color: var(--muted); }
 .form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .form label { display: flex; flex-direction: column; font-size: 13px; color: var(--muted); gap: 2px; }
 .form .full { grid-column: 1 / -1; }
@@ -8712,6 +8719,7 @@ dialog::backdrop { background: #0007; }
 </dialog>
 <dialog id="menu">
   <form method="dialog" style="display:flex;flex-direction:column;gap:8px">
+    <button value="ov">家人總覽（一次看所有人）</button>
     <button value="edit">編輯目前命主</button>
     <button value="del">刪除目前命主</button>
     <button value="export">匯出備份檔</button>
@@ -8719,6 +8727,13 @@ dialog::backdrop { background: #0007; }
     <button value="theme">切換深淺色</button>
     <button value="cancel">關閉</button>
   </form>
+</dialog>
+<dialog id="ov">
+  <div class="ovhead"><b>家人總覽</b>
+    <button data-ovy="-1" aria-label="前一年">◀</button><b id="ovy"></b><button data-ovy="1" aria-label="後一年">▶</button>
+    <select id="ovrel" aria-label="看誰"></select><select id="ovtag" aria-label="分類"></select>
+    <span class="sp"></span><button data-ovclose>關閉</button></div>
+  <div id="ovbody"></div>
 </dialog>
 <input type="file" id="file" accept=".json,application/json" hidden>
 
@@ -9223,14 +9238,19 @@ function scanYear(chart, year, opts) {
 
 // 大限／流年層級的「要注意什麼」（昆鴻 11/27：先做這大限、這一年，應期晚點）。
 // 回傳 {主題: {daxian, year, gate}}：daxian＝大限那條線有跡象（只算本命＋大限）、year＝流年那條線有跡象（算到流年）、gate＝大限／流年／小限命宮走進本命那條線。
+// 立太極：各層命宮（本命、大限、流年、小限、流月）一律往後挪 shift 宮；煞忌星位與四化不動。
+function shiftCtx(ctx, shift) {
+  if (!shift) return ctx;
+  const sh = b => b && B[(bi(b) + shift) % 12];
+  return { ...ctx, chart: { ...ctx.chart, mingBranch: sh(ctx.chart.mingBranch) }, dx: ctx.dx && { ...ctx.dx, branch: sh(ctx.dx.branch) },
+    ys: { ...ctx.ys, branch: sh(ctx.ys.branch) }, xx: sh(ctx.xx), mb: sh(ctx.mb) };
+}
+
 // opts.shift：立太極，各層命宮一律往後挪 shift 宮（例：兄弟宮立太極＝挪到兄弟宮那格）；煞忌星位不動。
 // 回傳另加 dgate＝大限命宮走進（太極後）本命那條線。
 function layerSigns(chart, year, opts = {}) {
   const { natal = false, shift = 0 } = opts;
-  const c0 = context(chart, year, 1); // 月份層級不用，任取一月
-  const sh = b => b && B[(bi(b) + shift) % 12];
-  const ctx = shift ? { ...c0, chart: { ...chart, mingBranch: sh(chart.mingBranch) }, dx: c0.dx && { ...c0.dx, branch: sh(c0.dx.branch) },
-    ys: { ...c0.ys, branch: sh(c0.ys.branch) }, xx: sh(c0.xx) } : c0;
+  const ctx = shiftCtx(context(chart, year, 1), shift); // 月份層級不用，任取一月
   return Object.fromEntries(THEME_NAMES.map(t => {
     const T = THEMES[t];
     const ln = line(ctx.chart.mingBranch, { 父疾: '疾厄', 兄弟: '兄弟', 夫妻: '夫妻', 財帛: '財帛' }[T.gate]);
@@ -9243,7 +9263,7 @@ function layerSigns(chart, year, opts = {}) {
   }));
 }
 
-return { context, THEME_NAMES, scanMonth, scanYear, layerSigns };
+return { context, THEME_NAMES, scanMonth, scanYear, shiftCtx, layerSigns };
 })();
 
 const $ = s => document.querySelector(s);
@@ -9374,9 +9394,10 @@ function renderBar(dxl) {
 }
 function renderTj(lys) {
   const base = lys.at(-1) || { label: '本命', names: Object.fromEntries(chart.palaces.map(p => [p.branch, p.name])) };
-  const find = n => Object.keys(base.names).find(b => base.names[b] === n);
+  const find = n => Object.keys(base.names).find(b => base.names[b] === n), bb = base.base || chart.mingBranch;
+  // data-tjs＝跟那一層命宮差幾格（面板、掃描用它挪各層命宮；從流年夫妻立太極也是「夫妻」那個人）
   $('#tjbtns').innerHTML = [['配偶', '夫妻'], ['子女', '子女'], ['父母', '父母'], ['兄弟', '兄弟']]
-    .map(([t, n]) => `<button data-tj="${find(n)}" data-tjl="${base.label}${n}（${t}）" data-tjp="${base.k ? base.k + SHORT[n] : SHORT[n]}">${t}</button>`).join(' ')
+    .map(([t, n]) => `<button data-tj="${find(n)}" data-tjs="${(B.indexOf(find(n)) - B.indexOf(bb) + 12) % 12}" data-tjl="${base.label}${n}（${t}）" data-tjp="${base.k ? base.k + SHORT[n] : SHORT[n]}">${t}</button>`).join(' ')
     + (sel.taiji ? ' <button data-tj="">取消</button>' : '');
 }
 // 第二期應期掃描：回測過的主題才開（昆鴻 11/27：感情婚姻、血光意外）；B 版＝本命煞忌不算。
@@ -9390,6 +9411,10 @@ const FOCUS = {
   身體健康: { line: '父疾線', what: '生病、就醫', trust: '回測偏弱（約四分之一年份會標）' },
 };
 const MK = { 羊: '羊', 陀: '陀', 火鈴: '火鈴', 忌: '忌', 鸞喜: '鸞喜' };
+// 標「注意」的共用判斷：健康、血光要引動（生產例外）
+const needGate = t => t === '身體健康' || t === '血光意外';
+const dxSg = (t, x) => x.daxian && (!needGate(t) || x.dgate || x.daxian.birth) ? x.daxian : null;
+const yrSg = (t, x) => { const sg = x.year || x.dy; return sg && (!needGate(t) || x.gate || sg.birth) ? sg : null; };
 const marksTxt = sg => sg ? [...new Set(sg.c.list.filter(x => MK[x.k]).map(x => (x.lay === '本' ? '本' : x.lay) + MK[x.k]))].join('、') : '';
 function renderFocus() {
   const el = $('#focus');
@@ -9397,14 +9422,13 @@ function renderFocus() {
   const y = sel.year || (dx ? L.yearsOfDaxian(chart, dx)[0] : null);
   if (!y || !dx) { el.innerHTML = '<h3>這個大限、這一年要注意</h3><div class="muted">選一個大限和流年就會整理。</div>'; return; }
   // 立太極時整個面板換成那個人（各層命宮一起挪），昆鴻 11/27
-  const shift = sel.taiji && sel.taiji !== chart.mingBranch ? (B.indexOf(sel.taiji) - B.indexOf(chart.mingBranch) + 12) % 12 : 0;
+  const shift = tjShift();
   const S = SC.layerSigns(chart, y, { ...SCAN_OPTS, shift }), dxb = B[(B.indexOf(dx.branch) + shift) % 12];
   const row = (t, sg, gate, extra) => {
     const F = FOCUS[t], on = !!sg && (gate || sg.birth);
     return `<li class="${on ? 'hit' : ''}"><b>${t}</b>${on ? `　<span class="tag">注意</span>　${F.what}${sg.note ? `（${sg.note}）` : ''}<br><small>${extra}${F.line}：${marksTxt(sg)}</small>`
       : sg && !gate ? `　<small>線上有煞忌，但運限命宮沒走進本命${F.line}（沒引動）</small>` : '　<small>—</small>'}</li>`;
   };
-  const needGate = t => t === '身體健康' || t === '血光意外';
   const dxList = Object.keys(FOCUS).map(t => {
     const x = S[t], g = !needGate(t) || x.dgate; // 大限命宮走進本命父疾線才算引動
     return row(t, x.daxian, g, '大限');
@@ -9427,12 +9451,13 @@ const SCAN = {
 let scanTheme = store.get('zw-scan-theme', '感情婚姻'), scanView = store.get('zw-scan-view', 'year');
 if (!SCAN[scanTheme]) scanTheme = '感情婚姻';
 const HIT = c => [c.羊 && `羊×${c.羊}`, c.陀 && `陀×${c.陀}`, c.火鈴 && `火鈴×${c.火鈴}`, c.忌 && `忌×${c.忌}`, c.鸞喜 && '鸞喜'].filter(Boolean).join(' ');
-const scanAt = (y, m) => SC.scanMonth(SC.context(chart, y, m), scanTheme, SCAN_OPTS);
+const tjShift = () => sel.taiji ? sel.tjShift || 0 : 0;
+const scanAt = (y, m) => SC.scanMonth(SC.shiftCtx(SC.context(chart, y, m), tjShift()), scanTheme, SCAN_OPTS);
 function renderScan() {
   const el = $('#scan'), T = SCAN[scanTheme];
   const tabs = `<div class="tabs">${Object.keys(SCAN).map(t => `<button class="${t === scanTheme ? 'on' : ''}" data-st="${t}">${t}</button>`).join('')}
     <span class="sp"></span>${[['year', '這一年'], ['dx', '大限十年']].map(([v, t]) => `<button class="${v === scanView ? 'on' : ''}" data-sv="${v}">${t}</button>`).join('')}</div>`;
-  let h = `<h3>應期掃描</h3>${tabs}`;
+  let h = `<h3>應期掃描${tjShift() ? `<small>　以${sel.tjLabel}立太極（看那個人）</small>` : ''}</h3>${tabs}`;
   if (scanView === 'dx') {
     const years = sel.dx === 'tong' || sel.dx == null ? [] : L.yearsOfDaxian(chart, L.daxianList(chart)[sel.dx]);
     if (!years.length) h += '<div class="muted">選一個大限就會掃描那十年。</div>';
@@ -9463,6 +9488,48 @@ $('#scan').addEventListener('click', e => {
   }
   render();
 });
+// 家人總覽（昆鴻 11/27）：選年份與「看誰」，列出每位命主大限／流年要注意的主題；點名字跳到那張盤並套上立太極。
+const REL = [['本人', '命宮'], ['配偶', '夫妻'], ['父親', '父母'], ['母親', '兄弟'], ['子女', '子女']];
+const SHORT_T = { 感情婚姻: '感情', 血光意外: '血光', 財運: '財運', 小人是非: '小人', 身體健康: '健康' };
+let ovYear = L.lunarOf(new Date()).year, ovRel = '本人', ovTag = '全部';
+function ovPerson(p) {
+  const c = computeChart({ year: p.y, month: p.m, day: p.d, hour: p.h, minute: p.min, gender: p.gender, calendar: p.cal, isLeapMonth: !!p.leap });
+  const pn = REL.find(r => r[0] === ovRel)[1], nm = L.namesFrom(c.mingBranch), pal = Object.keys(nm).find(b => nm[b] === pn);
+  const shift = (B.indexOf(pal) - B.indexOf(c.mingBranch) + 12) % 12;
+  const d = L.daxianAt(c, ovYear - L.birthSolar(c).getFullYear() + 1);
+  const S = d && SC.layerSigns(c, ovYear, { ...SCAN_OPTS, shift });
+  const hit = f => S ? Object.keys(FOCUS).filter(t => f(t, S[t])) : null;
+  return { c, pn, pal, shift, d, dx: hit(dxSg), yr: hit(yrSg) };
+}
+function renderOv() {
+  $('#ovy').textContent = `${ovYear} ${L.yearGZ(ovYear).stem}${L.yearGZ(ovYear).branch}`;
+  $('#ovrel').innerHTML = REL.map(([r]) => `<option${r === ovRel ? ' selected' : ''}>${r}</option>`).join('');
+  const tags = ['全部', ...new Set(people.map(p => p.tag))];
+  if (!tags.includes(ovTag)) ovTag = '全部';
+  $('#ovtag').innerHTML = tags.map(t => `<option${t === ovTag ? ' selected' : ''}>${t}</option>`).join('');
+  const T = a => a == null ? '<span class="none">還沒起大限</span>' : a.length ? a.map(t => `<span class="t">${SHORT_T[t]}</span>`).join('') : '<span class="none">—</span>';
+  const rows = people.filter(p => ovTag === '全部' || p.tag === ovTag).map(p => {
+    let r; try { r = ovPerson(p); } catch { return `<tr><td>${p.name}</td><td colspan="2" class="none">生辰有誤，排不出盤</td></tr>`; }
+    return `<tr><td><button data-ov="${p.id}">${p.name}</button><small>${p.tag}${ovRel === '本人' ? '' : `・以${r.pn}立太極`}</small></td><td>${T(r.dx)}</td><td>${T(r.yr)}</td></tr>`;
+  }).join('');
+  $('#ovbody').innerHTML = people.length ? `<table><tr><th>命主</th><th>大限要注意</th><th>流年要注意</th></tr>${rows}</table>
+    <div class="muted" style="font-size:12px;color:var(--muted);margin-top:6px">規則同盤下方「這個大限、這一年要注意」；可信度也一樣（感情、血光較可看；財運、小人偏多；健康偏弱）。看父母、配偶是用命主的盤立太極推，不是對方自己的盤。</div>`
+    : '<div class="none">尚無命主</div>';
+}
+$('#ov').addEventListener('change', e => { if (e.target.id === 'ovrel') ovRel = e.target.value; if (e.target.id === 'ovtag') ovTag = e.target.value; renderOv(); });
+$('#ov').addEventListener('click', e => {
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.dataset.ovy) { ovYear += +t.dataset.ovy; renderOv(); }
+  if (t.dataset.ovclose != null) $('#ov').close();
+  if (t.dataset.ov) {
+    const p = people.find(x => x.id === t.dataset.ov), r = ovPerson(p);
+    load(p.id);
+    Object.assign(sel, { dx: r.d ? r.d.k : 'tong', year: ovYear, month: null, day: null, date: null });
+    if (r.shift) Object.assign(sel, { taiji: r.pal, tjShift: r.shift, tjLabel: `本命${r.pn}（${ovRel}）`, tjPrefix: SHORT[r.pn] });
+    render(); $('#ov').close(); $('#focus').scrollIntoView({ behavior: 'smooth' });
+  }
+});
+
 function nameOf(b) { return chart.palaces[B.indexOf(b)].name; }
 function renderDetail(lys) {
   const b = sel.pick, el = $('#detail');
@@ -9478,7 +9545,7 @@ function renderDetail(lys) {
   el.innerHTML = `<h3>${p.stem}${b}　本命${p.name}</h3><div>${layerNames}</div>
     <div>宮干「${p.stem}」飛出：</div><ul>${out}</ul>
     <div>飛入此宮：${inn}</div>
-    <div style="margin-top:6px"><button data-tj="${b}" data-tjl="本命${p.name}" data-tjp="${SHORT[p.name]}">以此宮立太極</button> <button data-unpick>收起</button></div>`;
+    <div style="margin-top:6px"><button data-tj="${b}" data-tjs="${(B.indexOf(b) - B.indexOf(chart.mingBranch) + 12) % 12}" data-tjl="本命${p.name}" data-tjp="${SHORT[p.name]}">以此宮立太極</button> <button data-unpick>收起</button></div>`;
 }
 
 const COLOR = { 祿: '--lu', 權: '--quan', 科: '--ke', 忌: '--ji' };
@@ -9522,7 +9589,7 @@ $('#bar').addEventListener('click', e => {
 });
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-tj]');
-  if (t) { sel.taiji = t.dataset.tj || null; sel.tjLabel = t.dataset.tjl || ''; sel.tjPrefix = t.dataset.tjp || ''; render(); }
+  if (t) { sel.taiji = t.dataset.tj || null; sel.tjLabel = t.dataset.tjl || ''; sel.tjPrefix = t.dataset.tjp || ''; sel.tjShift = +t.dataset.tjs || 0; render(); }
   if (e.target.closest('[data-unpick]')) { sel.pick = null; render(); }
 });
 $('#bar').addEventListener('change', e => { if (e.target.id === 'gd' && e.target.value) { const [y, m, d] = e.target.value.split('-').map(Number); goDate(new Date(y, m - 1, d)); render(); } });
@@ -9563,6 +9630,7 @@ $('#add').addEventListener('click', () => openForm(null));
 $('#more').addEventListener('click', () => $('#menu').showModal());
 $('#menu').addEventListener('close', () => {
   const v = $('#menu').returnValue;
+  if (v === 'ov') { renderOv(); $('#ov').showModal(); }
   if (v === 'edit' && cur) openForm(cur);
   if (v === 'del' && cur && confirm(`刪除「${cur.name}」？（建議先匯出備份）`)) { people = people.filter(x => x.id !== cur.id); store.set('zw-people', people); load(people[0]?.id); }
   if (v === 'export') {
