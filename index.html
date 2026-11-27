@@ -8639,7 +8639,7 @@ dialog::backdrop { background: #0007; }
 .ovhead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; } .ovhead .sp { flex: 1; }
 #ov table { width: 100%; border-collapse: collapse; font-size: 13px; }
 #ov th, #ov td { text-align: left; padding: 5px 4px; border-top: 1px solid var(--line); vertical-align: top; }
-#ov td small { display: block; color: var(--muted); font-size: 11px; }
+#ov td small, #ov th small { display: block; font-weight: 400; color: var(--muted); font-size: 11px; }
 #ov .t { display: inline-block; margin: 1px 2px 1px 0; font-size: 11px; padding: 0 4px; border-radius: 3px; background: #f2a65a; color: #3a1a00; }
 #ov .none { color: var(--muted); }
 .form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -9492,6 +9492,7 @@ $('#scan').addEventListener('click', e => {
 const REL = [['本人', '命宮'], ['配偶', '夫妻'], ['父親', '父母'], ['母親', '兄弟'], ['子女', '子女']];
 const SHORT_T = { 感情婚姻: '感情', 血光意外: '血光', 財運: '財運', 小人是非: '小人', 身體健康: '健康' };
 let ovYear = L.lunarOf(new Date()).year, ovRel = '本人', ovTag = '全部';
+const NEXT3 = (() => { const t = L.lunarOf(new Date()); return [0, 1, 2].map(k => [t.year + Math.floor((t.month - 1 + k) / 12), (t.month - 1 + k) % 12 + 1]); })();
 function ovPerson(p) {
   const c = computeChart({ year: p.y, month: p.m, day: p.d, hour: p.h, minute: p.min, gender: p.gender, calendar: p.cal, isLeapMonth: !!p.leap });
   const pn = REL.find(r => r[0] === ovRel)[1], nm = L.namesFrom(c.mingBranch), pal = Object.keys(nm).find(b => nm[b] === pn);
@@ -9499,7 +9500,10 @@ function ovPerson(p) {
   const d = L.daxianAt(c, ovYear - L.birthSolar(c).getFullYear() + 1);
   const S = d && SC.layerSigns(c, ovYear, { ...SCAN_OPTS, shift });
   const hit = f => S ? Object.keys(FOCUS).filter(t => f(t, S[t])) : null;
-  return { c, pn, pal, shift, d, dx: hit(dxSg), yr: hit(yrSg) };
+  // 近三個月：今天的農曆月起三個月，只看月份層級回測過的感情、血光，只列中、重
+  const near = NEXT3.flatMap(([y, m]) => Object.keys(SCAN).map(t => [y, m, t, SC.scanMonth(SC.shiftCtx(SC.context(c, y, m), shift), t, SCAN_OPTS)]))
+    .filter(([, , , r]) => r.level >= 2).map(([y, m, t, r]) => `${MONTHS[m - 1]}月${SHORT_T[t]}${r.label}`);
+  return { c, pn, pal, shift, d, dx: hit(dxSg), yr: hit(yrSg), near };
 }
 function renderOv() {
   $('#ovy').textContent = `${ovYear} ${L.yearGZ(ovYear).stem}${L.yearGZ(ovYear).branch}`;
@@ -9509,11 +9513,11 @@ function renderOv() {
   $('#ovtag').innerHTML = tags.map(t => `<option${t === ovTag ? ' selected' : ''}>${t}</option>`).join('');
   const T = a => a == null ? '<span class="none">還沒起大限</span>' : a.length ? a.map(t => `<span class="t">${SHORT_T[t]}</span>`).join('') : '<span class="none">—</span>';
   const rows = people.filter(p => ovTag === '全部' || p.tag === ovTag).map(p => {
-    let r; try { r = ovPerson(p); } catch { return `<tr><td>${p.name}</td><td colspan="2" class="none">生辰有誤，排不出盤</td></tr>`; }
-    return `<tr><td><button data-ov="${p.id}">${p.name}</button><small>${p.tag}${ovRel === '本人' ? '' : `・以${r.pn}立太極`}</small></td><td>${T(r.dx)}</td><td>${T(r.yr)}</td></tr>`;
+    let r; try { r = ovPerson(p); } catch { return `<tr><td>${p.name}</td><td colspan="3" class="none">生辰有誤，排不出盤</td></tr>`; }
+    return `<tr><td><button data-ov="${p.id}">${p.name}</button><small>${p.tag}${ovRel === '本人' ? '' : `・以${r.pn}立太極`}</small></td><td>${T(r.dx)}</td><td>${T(r.yr)}</td><td>${r.near.length ? r.near.map(x => `<span class="t">${x}</span>`).join('') : '<span class="none">—</span>'}</td></tr>`;
   }).join('');
-  $('#ovbody').innerHTML = people.length ? `<table><tr><th>命主</th><th>大限要注意</th><th>流年要注意</th></tr>${rows}</table>
-    <div class="muted" style="font-size:12px;color:var(--muted);margin-top:6px">規則同盤下方「這個大限、這一年要注意」；可信度也一樣（感情、血光較可看；財運、小人偏多；健康偏弱）。看父母、配偶是用命主的盤立太極推，不是對方自己的盤。</div>`
+  $('#ovbody').innerHTML = people.length ? `<table><tr><th>命主</th><th>大限要注意</th><th>流年要注意</th><th>近三個月<small>${NEXT3.map(([, m]) => MONTHS[m - 1]).join('、')}月</small></th></tr>${rows}</table>
+    <div class="muted" style="font-size:12px;color:var(--muted);margin-top:6px">規則同盤下方「這個大限、這一年要注意」；可信度也一樣（感情、血光較可看；財運、小人偏多；健康偏弱）。近三個月＝從今天的農曆月起，只看月份掃描回測過的感情、血光，只列中、重，不跟著上面的年份換。看父母、配偶是用命主的盤立太極推，不是對方自己的盤。</div>`
     : '<div class="none">尚無命主</div>';
 }
 $('#ov').addEventListener('change', e => { if (e.target.id === 'ovrel') ovRel = e.target.value; if (e.target.id === 'ovtag') ovTag = e.target.value; renderOv(); });
@@ -9531,6 +9535,29 @@ $('#ov').addEventListener('click', e => {
 });
 
 function nameOf(b) { return chart.palaces[B.indexOf(b)].name; }
+// 小星意思（只收大耕筆記寫過的；雜曜不能脫離主星輔星單獨論斷——高階08）
+const STAR_NOTE = {
+  晦氣: '事情看不清楚、被蓋住，原本精明的宮位施展不開。', 喪門: '家中喪事（狹義，直系家人）；要配兩顆以上煞星才成立。',
+  弔客: '家中喪事（廣義，親戚、寵物都算）；要配兩顆以上煞星才成立。', 貫索: '較小的官非糾紛；要配兩顆以上煞星，吉凶看主星輔星。',
+  官符: '行政機關的正式命令；要配兩顆以上煞星，吉凶看主星輔星。', 小耗: '小額財物損失，看落在哪宮判斷用途。', 大耗: '大額財物損失，看落在哪宮判斷用途。',
+  龍德: '上天的恩德庇佑，可當貴人星，能緩和破財或凶象。', 天德: '上天的恩德庇佑，可當貴人星，能緩和破財或凶象。',
+  白虎: '原本屬於你的東西被突然截走；要配兩顆以上煞星才成立（老師不採「白虎在子女宮易流產」）。', 病符: '身體小病痛，或人際間說不出口的小摩擦。',
+  長生: '蓬勃發展、新開始，也可當化科的加重。', 沐浴: '可當桃花星，開心快樂的事。', 冠帶: '成果完成、宣告階段。', 臨官: '成果完成、宣告階段。',
+  帝旺: '最旺盛的狀態。', 衰: '發揮不出力道（類似晦氣）。', 病: '問題叢生。', 死: '這宮的事「沒搞頭」、這段時間解決不了（不是字面的死亡或分手）。',
+  墓: '已經過去、穩定下來。', 絕: '已經結束、沒有延續性。', 胎: '剛發生、正在培養中的新狀態。',
+  天哭: '運限子田線見天哭、天虛、弔客＝家中喪事相關（高階05；老師說準度不高，只當輔助）。', 天虛: '運限子田線見天哭、天虛、弔客＝家中喪事相關（高階05；老師說準度不高，只當輔助）。',
+  蜚廉: '兄僕線見蜚廉：會碰上小人、有人背後說壞話。',
+  地空: '本來該有的會變沒有（這段時間要給你，最後沒給）；只影響所在宮，影響的是時間。', 地劫: '已經有了但會被劫走（給了又被拿走）；只影響所在宮，影響的是時間。',
+  截空: '宮位像關上門的廚房：有能力但展現不出來，以對宮來解釋；運限命宮走進來時打開（大限最明顯）。',
+  紅鸞: '父疾線配煞星＝血光；子田線見鸞喜＝懷孕、結婚跡象。', 天喜: '父疾線配煞星＝血光；子田線見鸞喜＝懷孕、結婚跡象。',
+  陰煞: '運限遇陰煞、天巫時，接觸靈體的機會較高（大多數人無感）。', 天巫: '運限遇陰煞、天巫時，接觸靈體的機會較高（大多數人無感）。',
+};
+const STAR_KIND = { sui: '歲建（本命）', cs: '長生' };
+function starNotes(p) {
+  const li = p.stars.filter(s => ['misc', 'sui', 'cs'].includes(s.type))
+    .map(s => `<li><b>${s.name}</b>${STAR_KIND[s.type] ? `<small>（${STAR_KIND[s.type]}）</small>` : ''}：${STAR_NOTE[s.name] || '<span class="muted">筆記沒寫</span>'}</li>`).join('');
+  return li ? `<div style="margin-top:6px">這宮的小星（筆記）：</div><ul>${li}</ul><div class="muted" style="font-size:12px">小星不能脫離主星、輔星單獨論斷，只是加重或削弱。</div>` : '';
+}
 function renderDetail(lys) {
   const b = sel.pick, el = $('#detail');
   if (!b) { el.innerHTML = '點任一宮：看宮干飛化、誰飛進來；要立太極按明細裡的「以此宮立太極」或下方快捷鈕。'; return; }
@@ -9545,6 +9572,7 @@ function renderDetail(lys) {
   el.innerHTML = `<h3>${p.stem}${b}　本命${p.name}</h3><div>${layerNames}</div>
     <div>宮干「${p.stem}」飛出：</div><ul>${out}</ul>
     <div>飛入此宮：${inn}</div>
+    ${starNotes(p)}
     <div style="margin-top:6px"><button data-tj="${b}" data-tjs="${(B.indexOf(b) - B.indexOf(chart.mingBranch) + 12) % 12}" data-tjl="本命${p.name}" data-tjp="${SHORT[p.name]}">以此宮立太極</button> <button data-unpick>收起</button></div>`;
 }
 
