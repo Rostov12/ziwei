@@ -8673,6 +8673,7 @@ dialog::backdrop { background: #0007; }
 .flist li { padding: 4px 0; border-top: 1px dashed var(--line); }
 .flist li.hit b { color: var(--ji); }
 .flist small { color: var(--muted); }
+.flist .say { font-size: 13px; line-height: 1.6; margin-top: 2px; }
 .flist .tag { font-size: 11px; padding: 0 4px; border-radius: 3px; background: #f2a65a; color: #3a1a00; }
 .scan .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
 .scan .tabs button { min-height: 36px; padding: 2px 10px; font-size: 13px; border: 1px solid var(--line); border-radius: 18px; background: var(--panel2); color: var(--ink); }
@@ -9494,6 +9495,22 @@ const FOCUS = {
   小人是非: { line: '兄僕線', what: '小人、口舌、朋友糾紛', trust: '已收緊，約四成年份仍會標' },
   身體健康: { line: '父疾線', what: '生病、就醫', trust: '回測偏弱（約四分之一年份會標）' },
 };
+// 白話（昆鴻 11/27）：為什麼標、哪幾個月、可以怎麼做。用祈願口吻，不嚇人、不保證。
+const HUMAN = { 感情婚姻: '感情', 血光意外: '身體安全', 財運: '錢財', 小人是非: '人際', 身體健康: '身體' };
+const PLAIN = { 羊: '擎羊（衝動、硬碰硬）', 陀: '陀羅（拖延、悶著）', 火鈴: '火星鈴星（急躁、突發）', 忌: '化忌（卡關、放不下）', 鸞喜: '紅鸞天喜（喜事，也可能見血）' };
+const ADV = {
+  感情婚姻: '有話早點說開；分手、結婚、簽字這類大決定先緩一緩，多聽一個人的意見。',
+  血光意外: '開車騎車放慢、少做高風險活動；要開刀或生產就提早安排，選熟悉的醫院。',
+  財運: '大筆投資、借錢、作保先停看聽，留一筆備用金。',
+  小人是非: '合約講清楚、白紙黑字；不在背後談人，也別替人作保背書。',
+  身體健康: '按時健檢，小毛病早點看醫生，別硬撐。',
+};
+function sayTxt(t, sg, lay, months) {
+  const F = FOCUS[t], ks = [...new Set(sg.c.list.map(x => x.k).filter(k => PLAIN[k]))].map(k => PLAIN[k]).join('、');
+  return `${lay === '大限' ? '這十年' : '這一年'}管${HUMAN[t]}的位置碰到${ks}，容易有${F.what}${sg.note && !/四馬地|對拱/.test(sg.note) ? `（${sg.note}）` : ''}。${months?.length ? `比較要留意農曆${months.map(m => MONTHS[m - 1]).join('、')}月。` : ''}建議：${ADV[t]}`;
+}
+// 流年那一層：感情、血光才有月份掃描（回測過），列中、重的月
+const hotMonths = (t, y, shift) => SCAN[t] ? Array.from({ length: 12 }, (_, i) => i + 1).filter(m => SC.scanMonth(SC.shiftCtx(SC.context(chart, y, m), shift), t, SCAN_OPTS).level >= 2) : [];
 const MK = { 羊: '羊', 陀: '陀', 火鈴: '火鈴', 忌: '忌', 鸞喜: '鸞喜' };
 // 標「注意」的共用判斷：健康、血光要引動（生產例外）
 const needGate = t => t === '身體健康' || t === '血光意外';
@@ -9503,11 +9520,11 @@ const marksTxt = sg => sg ? [...new Set(sg.c.list.filter(x => MK[x.k]).map(x => 
 // 一鍵複製（昆鴻 11/27）：把面板整理成一段文字放到剪貼簿，只在本機，不會送出
 let focusText = '';
 function focusTxt(S, dx, dxb, y, shift) {
-  const g = L.yearGZ(y), line = (f, x) => Object.keys(FOCUS).map(t => [t, f(t, S[t])]).filter(([, sg]) => sg)
-    .map(([t, sg]) => `${t}（${FOCUS[t].what}${sg.note ? '・' + sg.note : ''}）`).join('；') || '無明顯跡象';
+  const g = L.yearGZ(y), line = (f, lay) => Object.keys(FOCUS).map(t => [t, f(t, S[t])]).filter(([, sg]) => sg)
+    .map(([t, sg]) => `\n・${t}：${sayTxt(t, sg, lay, lay === '流年' ? hotMonths(t, y, shift) : null)}`).join('') || '無明顯跡象';
   return [`【${cur.name}】${y} ${g.stem}${g.branch}${shift ? `　以${sel.tjLabel}立太極` : ''}`,
-    `大限 ${palStem(dxb)}${dxb}（命主 ${dx.from}–${dx.to} 歲）要注意：${line(dxSg)}`,
-    `流年 ${y} ${g.stem}${g.branch} 要注意：${line(yrSg)}`,
+    `大限 ${palStem(dxb)}${dxb}（命主 ${dx.from}–${dx.to} 歲）要注意：${line(dxSg, '大限')}`,
+    `流年 ${y} ${g.stem}${g.branch} 要注意：${line(yrSg, '流年')}`,
     `※ 排盤程式依筆記規則機械判讀；可信度：${Object.entries(FOCUS).map(([t, F]) => `${t}${F.trust}`).join('、')}。寫給人看前請人工看盤、先問現況。`].join('\n');
 }
 $('#focus').addEventListener('click', async e => {
@@ -9525,8 +9542,8 @@ function renderFocus() {
   const shift = tjShift();
   const S = SC.layerSigns(chart, y, { ...SCAN_OPTS, shift }), dxb = B[(B.indexOf(dx.branch) + shift) % 12];
   const row = (t, sg, gate, extra) => {
-    const F = FOCUS[t], on = !!sg && (gate || sg.birth);
-    return `<li class="${on ? 'hit' : ''}"><b>${t}</b>${on ? `　<span class="tag">注意</span>　${F.what}${sg.note ? `（${sg.note}）` : ''}<br><small>${extra}${F.line}：${marksTxt(sg)}</small>`
+    const F = FOCUS[t], on = !!sg && (gate || sg.birth), lay = extra === '大限' ? '大限' : '流年';
+    return `<li class="${on ? 'hit' : ''}"><b>${t}</b>${on ? `　<span class="tag">注意</span><div class="say">${sayTxt(t, sg, lay, lay === '流年' ? hotMonths(t, y, shift) : null)}</div><small>${extra}${F.line}：${marksTxt(sg)}</small>`
       : sg && !gate ? `　<small>線上有煞忌，但運限命宮沒走進本命${F.line}（沒引動）</small>` : '　<small>—</small>'}</li>`;
   };
   const dxList = Object.keys(FOCUS).map(t => {
