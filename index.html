@@ -9329,7 +9329,6 @@ function chartTags(c) {
   Q('月朗天門', m === '亥' && has(m, '太陰'));
   Q('月生滄海', sb('太陰') === '子' && tz === '子', [], bad(tz));
   Q('輔弼拱主', has(m, '紫微') && ((sees(m, ['左輔']).length && sees(m, ['右弼']).length) || jia(m, '左輔', isS('右弼'))));
-  Q('君臣慶會（原書）', has(m, '紫微') && has(m, '左輔') && has(m, '右弼'), sees(m, ['天相', '武曲', '太陰']));
   Q('坐貴向貴', (has(m, '天魁') && sees(m, ['天鉞']).length > 0) || (has(m, '天鉞') && sees(m, ['天魁']).length > 0));
   Q('七殺朝斗', ['寅', '申', '子', '午'].includes(m) && has(m, '七殺'));
   Q('紫府朝垣', ['寅', '申'].includes(m) && has(m, '紫微') && has(m, '天府'), [...sees(m, ['祿存']), ...hua(m)]);
@@ -9340,7 +9339,7 @@ function chartTags(c) {
   Q('財與囚仇', (has(m, '武曲') && has(shen, '廉貞')) || (has(m, '廉貞') && has(shen, '武曲')), [], []);
   Q('兩重華蓋', has(m, '祿存') && sb(c.sihua.祿) === m && sees(m, ['地空', '地劫']).length > 0, [], sees(m, ['地空', '地劫']));
   mark('全書・富', ['日月夾財', '財祿夾馬', '日月照璧', '金燦光輝']);
-  mark('全書・貴', ['日月夾命', '日出扶桑', '月朗天門', '月生滄海', '輔弼拱主', '君臣慶會（原書）', '坐貴向貴', '七殺朝斗', '紫府朝垣', '刑囚夾印', '武曲守垣', '石中隱玉']);
+  mark('全書・貴', ['日月夾命', '日出扶桑', '月朗天門', '月生滄海', '輔弼拱主', '坐貴向貴', '七殺朝斗', '紫府朝垣', '刑囚夾印', '武曲守垣', '石中隱玉']);
   mark('全書・貧賤', ['財與囚仇', '兩重華蓋']);
   G.forEach(x => x.kind = kind[x.name] || '佳妤說格局');
   return { 生年天干: stem + '年', 盤型: '紫微在' + sb('紫微'), 命宮主星: mains.length ? mains.join('') : '命無主星', 五行局: c.bureau.name, 格局: G };
@@ -9745,7 +9744,7 @@ function renderCat() {
   const keys = [...groups.keys()].sort((a, b) => order ? order(a) - order(b) : groups.get(b).length - groups.get(a).length);
   $('#catbody').innerHTML = people.length ? keys.map(k => `<h4>${k}（${groups.get(k).length}）</h4>${groups.get(k).map(([p, sub]) => sub
       ? `<button data-cat="${p.id}">${p.name}</button><small>${sub}</small>` : `<button data-cat="${p.id}">${p.name}</button>`).join('')}`).join('') +
-    (catBy === '格局' ? '<p class="muted" style="font-size:12px;color:var(--muted)">只檢查骨架：佳妤說格局 EP1–8 的 8 格，加《斗數全書》卷一定富局、定貴局、定貧賤局與卷二、三的 18 格（原文與判法見 docs/古書格局清單.md）。君臣慶會兩種說法都列。貧賤局是凶格。格局要足夠條件綜合評估才成格，這裡只是候選，加分、減分列給你判斷。</p>' : '')
+    (catBy === '格局' ? '<p class="muted" style="font-size:12px;color:var(--muted)">只檢查骨架：佳妤說格局 EP1–8 的 8 格，加《斗數全書》卷一定富局、定貴局、定貧賤局與卷二、三的 17 格（原文與判法見 docs/古書格局清單.md）。君臣慶會照佳妤老師說法。貧賤局是凶格。格局要足夠條件綜合評估才成格，這裡只是候選，加分、減分列給你判斷。</p>' : '')
     : '<p class="muted">尚無命主</p>';
 }
 const STEMS_ORDER = '甲乙丙丁戊己庚辛壬癸';
