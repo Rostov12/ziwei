@@ -8597,6 +8597,7 @@ button.primary { background: var(--btn); color: var(--btnink); border-color: var
 .st.misc, .st.flow { font-size: 11px; width: 13px; line-height: 12px; }
 .st.misc { color: var(--misc); }
 .st .br { font-size: 9px; color: var(--muted); }
+.sui { font-size: 10px; color: var(--misc); } /* 歲建十二（本命） */
 .hua { display: block; width: 14px; height: 14px; margin-top: 1px; font-size: 10px; line-height: 14px; text-align: center; color: #fff; border-radius: 2px; font-weight: 700; letter-spacing: 0; }
 .k本 { background: var(--L本); } .k大 { background: var(--L大); } .k年 { background: var(--L年); } .k月 { background: var(--L月); } .k日 { background: var(--L日); }
 .foot { display: flex; justify-content: space-between; align-items: flex-end; gap: 2px; font-size: 11px; line-height: 1.25; margin-top: 2px; }
@@ -8874,6 +8875,8 @@ function computeChart(input, options = {}) {
   add('陰煞', 'misc', [2, 0, 10, 8, 6, 4][(m - 1) % 6]);
   add('蜚廉', 'misc', [8, 9, 10, 5, 6, 7, 2, 3, 4, 11, 0, 1][y]);
   add('截空', 'misc', [8, 6, 4, 2, 0, 8, 6, 4, 2, 0][STEMS.indexOf(yearStem)]); // 學會一律取陽支（2026 大賽命例01 乙年在午）
+  // 歲建十二：從生年地支起順排。大耕高階08：只用本命，不用流年歲建
+  ['歲建', '晦氣', '喪門', '貫索', '官符', '小耗', '大耗', '龍德', '白虎', '天德', '弔客', '病符'].forEach((n, i) => add(n, 'sui', y + i));
 
   return {
     input: { ...input },
@@ -9303,7 +9306,7 @@ function render() {
   let html = '';
   for (const p of chart.palaces) {
     const [r, c] = POS[p.branch];
-    const stars = p.stars.map(s => {
+    const stars = p.stars.filter(s => s.type !== 'sui').map(s => {
       const hs = [];
       if (s.sihua) hs.push(['本', s.sihua]);
       for (const l of lys) if (l.k !== '日' && l.hua[s.name]) hs.push([l.k, l.hua[s.name]]); // 流日四化不標（昆鴻 11/27）
@@ -9313,7 +9316,7 @@ function render() {
     html += `<div class="cell${sel.pick === p.branch ? ' pick' : ''}${sel.taiji === p.branch ? ' tj' : ''}" style="grid-row:${r};grid-column:${c}" data-b="${p.branch}">
       <div class="stars">${stars}</div>
       <div><div>${marks}</div><div class="foot">
-        <div class="lnames"><div class="rng">${rng[p.branch]}</div>${tjNames ? `<div class="Ltj">${sel.tjPrefix}之${SHORT[tjNames[p.branch]]}</div>` : ''}</div>
+        <div class="lnames"><div class="rng">${rng[p.branch]}</div><div class="sui">${p.stars.filter(s => s.type === 'sui').map(s => s.name).join('')}</div>${tjNames ? `<div class="Ltj">${sel.tjPrefix}之${SHORT[tjNames[p.branch]]}</div>` : ''}</div>
         <div class="gz">${[...lys].reverse().map(l => `<div class="L${l.k}">${l.k}${SHORT[l.names[p.branch]]}</div>`).join('')}<div>${p.stem}${p.branch} <b>${p.name}</b></div></div>
       </div></div></div>`;
   }
