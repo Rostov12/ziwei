@@ -8579,6 +8579,7 @@ button, select, input, textarea { font: inherit; color: var(--ink); }
 button { min-height: 36px; padding: 4px 10px; border: 1px solid var(--line); background: var(--panel); border-radius: 6px; cursor: pointer; }
 button.primary { background: var(--btn); color: var(--btnink); border-color: var(--btn); }
 .top { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+.bk { font-size: 12px; margin: -4px 0 8px; padding: 4px 8px; border-radius: 6px; background: #f3e3a6; color: #4a3b00; } .bk button { font-size: 12px; margin-left: 6px; }
 .top select { flex: 1; min-width: 0; min-height: 40px; border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 0 8px; }
 /* 盤面 */
 .boardwrap { position: relative; }
@@ -8690,6 +8691,7 @@ dialog::backdrop { background: #0007; }
     <button id="add" class="primary">新增</button>
     <button id="more" aria-label="更多">⋯</button>
   </div>
+  <div class="bk" id="bk" hidden></div>
   <div class="boardwrap"><div class="grid" id="grid"></div><svg class="arrows" id="arrows"></svg></div>
   <div class="bar" id="bar"></div>
   <div class="tools">
@@ -8728,7 +8730,8 @@ dialog::backdrop { background: #0007; }
     <button value="ov">家人總覽（一次看所有人）</button>
     <button value="edit">編輯目前命主</button>
     <button value="del">刪除目前命主</button>
-    <button value="export">匯出備份檔</button>
+    <button value="png">存成圖片（盤＋要注意）</button>
+    <button value="export" id="expbtn">匯出備份檔</button>
     <button value="import">匯入備份檔</button>
     <button value="theme">切換深淺色</button>
     <button value="cancel">關閉</button>
@@ -9281,7 +9284,7 @@ const HUA_ORDER = ['祿', '權', '科', '忌'];
 const SHORT = { 命宮: '命', 兄弟: '兄', 夫妻: '夫', 子女: '子', 財帛: '財', 疾厄: '疾', 遷移: '遷', 交友: '友', 官祿: '官', 田宅: '田', 福德: '福', 父母: '父' };
 const store = {
   get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
-  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); if (k === 'zw-people') localStorage.setItem('zw-dirty', Date.now()); } catch {} },
 };
 let people = store.get('zw-people', []);
 let cur = null, chart = null, sel = {}, editing = null;
@@ -9373,7 +9376,7 @@ function render() {
     <div class="legend">${['本', '大', '年', '月'].map(k => `<span class="hua k${k}" style="width:auto;padding:0 3px">${k === '本' ? '本命' : k === '大' ? '大限' : '流' + k}</span>`).join('')}</div>
   </div>`;
   g.innerHTML = html;
-  renderBar(dxl); renderTj(lys); renderDetail(lys); renderFocus(); renderScan(); renderEvents();
+  renderBar(dxl); renderTj(lys); renderDetail(lys); renderFocus(); renderScan(); renderEvents(); renderBk();
   requestAnimationFrame(drawArrows);
 }
 
@@ -9512,6 +9515,33 @@ $('#scan').addEventListener('click', e => {
   }
   render();
 });
+// 備份提醒（昆鴻 11/27）：資料只在這支手機的瀏覽器，改過又超過 7 天沒匯出就提醒
+function renderBk() {
+  const dirty = store.get('zw-dirty', 0), bk = store.get('zw-backup', 0), days = t => Math.floor((Date.now() - t) / 864e5);
+  const last = bk ? (days(bk) ? `${days(bk)} 天前` : '今天') : '從沒備份';
+  $('#expbtn').textContent = `匯出備份檔（上次：${last}）`;
+  const warn = people.length && dirty > bk && (!bk || days(bk) >= 7);
+  $('#bk').hidden = !warn;
+  if (warn) $('#bk').innerHTML = `資料只存在這支手機，上次備份：${last}。<button data-bk>現在匯出</button>`;
+}
+$('#bk').addEventListener('click', e => { if (e.target.closest('[data-bk]')) { $('#menu').returnValue = 'export'; $('#menu').dispatchEvent(new Event('close')); } });
+
+// 存成圖片（昆鴻 11/27）：盤＋「要注意」拼成一張 PNG，只存在手機（第一次要網路載入 html2canvas，之後快取可離線）
+async function savePng() {
+  if (!chart) return;
+  try {
+    if (!window.html2canvas) await new Promise((ok, bad) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'; sc.onload = ok; sc.onerror = bad; document.head.appendChild(sc); });
+    const bg = getComputedStyle(document.body).backgroundColor, opt = { backgroundColor: bg, scale: 2 };
+    const a = await html2canvas($('.boardwrap'), opt), b = await html2canvas($('#focus'), opt);
+    const cv = document.createElement('canvas'); cv.width = Math.max(a.width, b.width); cv.height = a.height + b.height + 16;
+    const g = cv.getContext('2d'); g.fillStyle = bg; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(a, 0, 0); g.drawImage(b, 0, a.height + 16);
+    const blob = await new Promise(r => cv.toBlob(r, 'image/png')), name = `${cur.name}_${sel.year || ''}${sel.taiji ? '_' + sel.tjLabel : ''}.png`.replace(/[\\/:*?"<>|（）]/g, '');
+    const file = new File([blob], name, { type: 'image/png' });
+    if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file] });
+    else { const l = document.createElement('a'); l.href = URL.createObjectURL(blob); l.download = name; l.click(); }
+  } catch (e) { if (e?.name !== 'AbortError') alert('存圖失敗（第一次使用需要網路）'); }
+}
+
 // 事件紀錄（昆鴻 11/27）：記「哪天發生什麼」，當場看盤上有沒有標；跟著匯出備份走，給薇拉加進回測。
 function evCheck(e) {
   const [Y, M, D] = e.date.split('-').map(Number), lu = L.lunarOf(new Date(Y, M - 1, D));
@@ -9609,6 +9639,8 @@ const STAR_NOTE = {
   墓: '已經過去、穩定下來。', 絕: '已經結束、沒有延續性。', 胎: '剛發生、正在培養中的新狀態。',
   天哭: '運限子田線見天哭、天虛、弔客＝家中喪事相關（高階05；老師說準度不高，只當輔助）。', 天虛: '運限子田線見天哭、天虛、弔客＝家中喪事相關（高階05；老師說準度不高，只當輔助）。',
   蜚廉: '兄僕線見蜚廉：會碰上小人、有人背後說壞話。',
+  天刑: '（牌卡，待核對）無由來的災害災難，也帶自律、官非、血光的刑剋意；權重低，主輔情緒失控或煞忌多時才明顯。',
+  養: '（牌卡）事件獲得培養、持續茁壯，要花耐心、有計畫地醞釀；蓄勢待發。',
   地空: '本來該有的會變沒有（這段時間要給你，最後沒給）；只影響所在宮，影響的是時間。', 地劫: '已經有了但會被劫走（給了又被拿走）；只影響所在宮，影響的是時間。',
   截空: '宮位像關上門的廚房：有能力但展現不出來，以對宮來解釋；運限命宮走進來時打開（大限最明顯）。',
   紅鸞: '父疾線配煞星＝血光；子田線見鸞喜＝懷孕、結婚跡象。', 天喜: '父疾線配煞星＝血光；子田線見鸞喜＝懷孕、結婚跡象。',
@@ -9732,7 +9764,9 @@ $('#menu').addEventListener('close', () => {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([JSON.stringify(people, null, 1)], { type: 'application/json' }));
     a.download = `紫微命主備份-${new Date().toISOString().slice(0, 10)}.json`; a.click();
+    store.set('zw-backup', Date.now()); renderBk();
   }
+  if (v === 'png') savePng();
   if (v === 'import') $('#file').click();
   if (v === 'theme') { const r = document.documentElement; r.dataset.theme = r.dataset.theme === 'dark' ? 'light' : 'dark'; store.set('zw-theme', r.dataset.theme); render(); }
 });
