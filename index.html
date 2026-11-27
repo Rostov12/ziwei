@@ -9130,8 +9130,9 @@ const THEMES = {
     sign(ctx, base, lay, natal) {
       const xp = line(base, '兄弟'), c = count(ctx, xp, lay, natal);
       const mq = count(ctx, line(base, '命宮'), lay, natal);
-      // 11/27 試過「兄僕＋命遷都要煞忌」：隨機年 68%→45% 但唯一命中掉了，先不收；小人規則待補
-      if (sha(c) + c.忌 < 1) return null;
+      // 11/27 收緊（比照財運）：兩顆以上煞忌、至少一顆由這一層自己帶進來。年層級回測 命中 4/7、隨機年 87%→37%（原本一顆就算，比隨機還不準）
+      const own = c.list.some(x => x.lay === lay && ['羊', '陀', '火鈴', '忌'].includes(x.k));
+      if (sha(c) + c.忌 < 2 || !own) return null;
       const gf = guanfei(ctx, lay, [base, at(base, '夫妻'), at(base, '父母')]) ||
         (hasStar(ctx, line(base, '疾厄'), ['天府', '廉貞', '巨門', '太陽']) && (() => { const f = count(ctx, line(base, '疾厄'), lay, natal); return sha(f) + f.忌 >= 1; })());
       const heavy = gf && Math.max(sha(c), sha(mq)) >= 2;
@@ -9164,7 +9165,8 @@ const THEMES = {
         const shield = hasStar(ctx, ln, ['天府']) && hasStar(ctx, ln, ['祿存']);
         // 至少一顆煞忌由這一層自己帶進來，否則每年都被本命／大限的同一組煞忌算到（11/27 回測）
         const own = c.list.some(x => x.lay === lay && ['羊', '陀', '火鈴', '忌'].includes(x.k));
-        return sha(c) + c.忌 >= 2 && own && !shield ? c : null;
+        // 線上兩個祿（祿存／化祿各層）抵銷，同感情的雙祿交持；回測隨機年 45%→39%、命中不變
+        return sha(c) + c.忌 >= 2 && own && !shield && c.祿 < 2 ? c : null;
       };
       const cf = bad('財帛'), zt = bad('子女');
       if (!cf && !zt) return null;
@@ -9219,7 +9221,8 @@ function layerSigns(chart, year, opts = {}) {
     const gate = [ctx.dx?.branch, ctx.ys.branch, ctx.xx].some(b => b && ln.includes(b));
     // dy＝流年的煞忌打進大限那條線（筆記「運限父疾線」含大限線；命例06 2022 躁症＝流年羊忌落大限疾厄）
     return [t, { gate, year: T.sign(ctx, ctx.ys.branch, '年', natal), daxian: ctx.dx ? T.sign(ctx, ctx.dx.branch, '大', natal) : null,
-      dy: ctx.dx ? T.sign(ctx, ctx.dx.branch, '年', natal) : null }];
+      // 財運不看 dy：回測沒多抓到任何一件，隨機年 45%→66%
+      dy: ctx.dx && t !== '財運' ? T.sign(ctx, ctx.dx.branch, '年', natal) : null }];
   }));
 }
 
@@ -9365,8 +9368,8 @@ function renderTj(lys) {
 const FOCUS = {
   感情婚姻: { line: '夫官線', what: '感情變動、分手、爭吵', trust: '回測較準' },
   血光意外: { line: '父疾線', what: '受傷、血光、開刀、生產', trust: '回測普通' },
-  財運: { line: '財福／子田線', what: '破財、投資失利', trust: '標得偏多' },
-  小人是非: { line: '兄僕線', what: '小人、口舌、朋友糾紛', trust: '標得偏多' },
+  財運: { line: '財福／子田線', what: '破財、投資失利', trust: '已收緊，約四成年份仍會標' },
+  小人是非: { line: '兄僕線', what: '小人、口舌、朋友糾紛', trust: '已收緊，約四成年份仍會標' },
   身體健康: { line: '父疾線', what: '生病、就醫', trust: '回測抓不太到' },
 };
 const MK = { 羊: '羊', 陀: '陀', 火鈴: '火鈴', 忌: '忌', 鸞喜: '鸞喜' };
