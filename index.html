@@ -9221,8 +9221,8 @@ function layerSigns(chart, year, opts = {}) {
     const gate = [ctx.dx?.branch, ctx.ys.branch, ctx.xx].some(b => b && ln.includes(b));
     // dy＝流年的煞忌打進大限那條線（筆記「運限父疾線」含大限線；命例06 2022 躁症＝流年羊忌落大限疾厄）
     return [t, { gate, year: T.sign(ctx, ctx.ys.branch, '年', natal), daxian: ctx.dx ? T.sign(ctx, ctx.dx.branch, '大', natal) : null,
-      // 財運不看 dy：回測沒多抓到任何一件，隨機年 45%→66%
-      dy: ctx.dx && t !== '財運' ? T.sign(ctx, ctx.dx.branch, '年', natal) : null }];
+      // 財運不看 dy：回測沒多抓到任何一件，隨機年 45%→66%；感情不看 dy：年層級 7/13 vs 隨機 45% → 5/13 vs 26%（昆鴻 11/27 同意）
+      dy: ctx.dx && t !== '財運' && t !== '感情婚姻' ? T.sign(ctx, ctx.dx.branch, '年', natal) : null }];
   }));
 }
 
@@ -9366,7 +9366,7 @@ function renderTj(lys) {
 // 「這個大限、這一年要注意什麼」（昆鴻 11/27：先做這個，應期晚點）。B 版：本命煞忌只當背景，不算跡象。
 // 可信度＝大賽＋家人回測（流年層級）：感情有判斷力；血光普通；財運、小人標得太多；健康幾乎抓不到。
 const FOCUS = {
-  感情婚姻: { line: '夫官線', what: '感情變動、分手、爭吵', trust: '回測較準' },
+  感情婚姻: { line: '夫官線', what: '感情變動、分手、爭吵', trust: '整年看普通，月份掃描較準' },
   血光意外: { line: '父疾線', what: '受傷、血光、開刀、生產', trust: '回測普通' },
   財運: { line: '財福／子田線', what: '破財、投資失利', trust: '已收緊，約四成年份仍會標' },
   小人是非: { line: '兄僕線', what: '小人、口舌、朋友糾紛', trust: '已收緊，約四成年份仍會標' },
