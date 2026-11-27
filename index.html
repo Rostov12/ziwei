@@ -8642,6 +8642,9 @@ dialog::backdrop { background: #0007; }
 #ov td small, #ov th small { display: block; font-weight: 400; color: var(--muted); font-size: 11px; }
 #ov .t { display: inline-block; margin: 1px 2px 1px 0; font-size: 11px; padding: 0 4px; border-radius: 3px; background: #f2a65a; color: #3a1a00; }
 #ov .none { color: var(--muted); }
+.evform { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; } .evform input[type=text] { flex: 1 1 140px; min-width: 0; }
+.evok { color: var(--ji); font-weight: 700; } .evno { color: var(--muted); }
+.fcopy { float: right; font-size: 12px; }
 .form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .form label { display: flex; flex-direction: column; font-size: 13px; color: var(--muted); gap: 2px; }
 .form .full { grid-column: 1 / -1; }
@@ -8693,6 +8696,7 @@ dialog::backdrop { background: #0007; }
   <p class="note" id="note"></p>
   <div class="scan" id="focus"></div>
   <div class="scan" id="scan"></div>
+  <div class="scan" id="events"></div>
   <div class="detail" id="detail">點任一宮：看宮干飛化、誰飛進來、以此宮立太極。</div>
 </div>
 
@@ -9233,7 +9237,7 @@ function scanMonth(ctx, theme, opts = {}) {
 }
 
 function scanYear(chart, year, opts) {
-  return Object.fromEntries(THEME_NAMES.map(t => [t, Array.from({ length: 12 }, (_, i) => scanMonth(context(chart, year, i + 1), t, opts))]));
+  return Object.fromEntries(THEME_NAMES.map(t => [t, Array.from({ length: 12 }, (_, i) => scanMonth(shiftCtx(context(chart, year, i + 1), opts?.shift || 0), t, opts))]));
 }
 
 // 大限／流年層級的「要注意什麼」（昆鴻 11/27：先做這大限、這一年，應期晚點）。
@@ -9327,7 +9331,7 @@ function activeLayers() {
 
 function render() {
   const g = $('#grid');
-  if (!chart) { g.innerHTML = ''; $('#scan').innerHTML = ''; $('#focus').innerHTML = ''; $('#bar').innerHTML = ''; $('#arrows').innerHTML = ''; $('#tjbtns').innerHTML = ''; return; }
+  if (!chart) { g.innerHTML = ''; $('#scan').innerHTML = ''; $('#focus').innerHTML = ''; $('#events').innerHTML = ''; $('#bar').innerHTML = ''; $('#arrows').innerHTML = ''; $('#tjbtns').innerHTML = ''; return; }
   const lys = activeLayers();
   const dxl = L.daxianList(chart), rng = Object.fromEntries(dxl.map(d => [d.branch, `${d.from}–${d.to}`]));
   const yg = sel.year ? L.yearGZ(sel.year) : null;
@@ -9366,7 +9370,7 @@ function render() {
     <div class="legend">${['本', '大', '年', '月'].map(k => `<span class="hua k${k}" style="width:auto;padding:0 3px">${k === '本' ? '本命' : k === '大' ? '大限' : '流' + k}</span>`).join('')}</div>
   </div>`;
   g.innerHTML = html;
-  renderBar(dxl); renderTj(lys); renderDetail(lys); renderFocus(); renderScan();
+  renderBar(dxl); renderTj(lys); renderDetail(lys); renderFocus(); renderScan(); renderEvents();
   requestAnimationFrame(drawArrows);
 }
 
@@ -9416,6 +9420,22 @@ const needGate = t => t === '身體健康' || t === '血光意外';
 const dxSg = (t, x) => x.daxian && (!needGate(t) || x.dgate || x.daxian.birth) ? x.daxian : null;
 const yrSg = (t, x) => { const sg = x.year || x.dy; return sg && (!needGate(t) || x.gate || sg.birth) ? sg : null; };
 const marksTxt = sg => sg ? [...new Set(sg.c.list.filter(x => MK[x.k]).map(x => (x.lay === '本' ? '本' : x.lay) + MK[x.k]))].join('、') : '';
+// 一鍵複製（昆鴻 11/27）：把面板整理成一段文字放到剪貼簿，只在本機，不會送出
+let focusText = '';
+function focusTxt(S, dx, dxb, y, shift) {
+  const g = L.yearGZ(y), line = (f, x) => Object.keys(FOCUS).map(t => [t, f(t, S[t])]).filter(([, sg]) => sg)
+    .map(([t, sg]) => `${t}（${FOCUS[t].what}${sg.note ? '・' + sg.note : ''}）`).join('；') || '無明顯跡象';
+  return [`【${cur.name}】${y} ${g.stem}${g.branch}${shift ? `　以${sel.tjLabel}立太極` : ''}`,
+    `大限 ${palStem(dxb)}${dxb}（命主 ${dx.from}–${dx.to} 歲）要注意：${line(dxSg)}`,
+    `流年 ${y} ${g.stem}${g.branch} 要注意：${line(yrSg)}`,
+    `※ 排盤程式依筆記規則機械判讀；可信度：${Object.entries(FOCUS).map(([t, F]) => `${t}${F.trust}`).join('、')}。寫給人看前請人工看盤、先問現況。`].join('\n');
+}
+$('#focus').addEventListener('click', async e => {
+  const b = e.target.closest('[data-fcopy]'); if (!b) return;
+  try { await navigator.clipboard.writeText(focusText); b.textContent = '已複製'; }
+  catch { prompt('複製下面文字', focusText); }
+  setTimeout(() => { b.textContent = '複製文字'; }, 1500);
+});
 function renderFocus() {
   const el = $('#focus');
   const dx = sel.dx !== 'tong' && sel.dx != null ? L.daxianList(chart)[sel.dx] : null;
@@ -9438,7 +9458,8 @@ function renderFocus() {
     return row(t, sg, !needGate(t) || x.gate, which);
   }).join('');
   const g = L.yearGZ(y);
-  el.innerHTML = `<h3>這個大限、這一年要注意${shift ? `<small>　以${sel.tjLabel}立太極（看那個人）</small>` : ''}</h3>
+  focusText = focusTxt(S, dx, dxb, y, shift);
+  el.innerHTML = `<h3><button class="fcopy" data-fcopy>複製文字</button>這個大限、這一年要注意${shift ? `<small>　以${sel.tjLabel}立太極（看那個人）</small>` : ''}</h3>
     <div class="fcols"><div><div class="fh">大限 ${palStem(dxb)}${dxb}（命主 ${dx.from}–${dx.to} 歲）</div><ul class="flist">${dxList}</ul></div>
     <div><div class="fh">流年 ${y} ${g.stem}${g.branch}</div><ul class="flist">${yList}</ul></div></div>
     <div class="muted">看法：那條線上有兩顆以上煞忌（各主題細則同下方應期掃描），身體健康、血光意外要運限命宮走進本命父疾線才算。可信度：${Object.entries(FOCUS).map(([t, F]) => `${t}${F.trust}`).join('、')}。本命煞忌只當背景（身體健康例外：本命的也算進雙羊、雙陀）。</div>`;
@@ -9488,15 +9509,53 @@ $('#scan').addEventListener('click', e => {
   }
   render();
 });
+// 事件紀錄（昆鴻 11/27）：記「哪天發生什麼」，當場看盤上有沒有標；跟著匯出備份走，給薇拉加進回測。
+function evCheck(e) {
+  const [Y, M, D] = e.date.split('-').map(Number), lu = L.lunarOf(new Date(Y, M - 1, D));
+  const { shift } = relOf(chart, e.rel || '本人');
+  const x = SC.layerSigns(chart, lu.year, { ...SCAN_OPTS, shift })[e.theme];
+  const r = SC.scanMonth(SC.shiftCtx(SC.context(chart, lu.year, lu.month), shift), e.theme, SCAN_OPTS);
+  return { lu, yr: !!yrSg(e.theme, x), dx: !!dxSg(e.theme, x), lv: r.label };
+}
+function renderEvents() {
+  const el = $('#events'), evs = cur.events || [];
+  const yes = v => v ? '<span class="evok">有標</span>' : '<span class="evno">沒標</span>';
+  const rows = evs.map((e, i) => { const k = evCheck(e), g = L.yearGZ(k.lu.year);
+    return `<li><b>${e.date.replaceAll('-', '/')}</b>　${g.stem}${g.branch}年${MONTHS[k.lu.month - 1]}月　${e.theme}${e.rel && e.rel !== '本人' ? `（${e.rel}）` : ''}${e.text ? '：' + e.text.replace(/</g, '&lt;') : ''}
+      <button data-evdel="${i}" aria-label="刪除這筆" style="float:right">刪</button><br><small>大限 ${yes(k.dx)}　流年 ${yes(k.yr)}　那個月 ${k.lv ? `<span class="evok">${k.lv}</span>` : '<span class="evno">無</span>'}</small></li>`; });
+  const n = evs.length, ny = evs.filter(e => evCheck(e).yr).length;
+  el.innerHTML = `<h3>事件紀錄</h3>
+    <div class="evform"><input type="date" id="evd" aria-label="國曆日期"><select id="evt" aria-label="主題">${Object.keys(FOCUS).map(t => `<option>${t}</option>`).join('')}</select>
+      <select id="evr" aria-label="是誰的事">${REL.map(([r]) => `<option>${r}</option>`).join('')}</select>
+      <input type="text" id="evx" placeholder="發生什麼（例：開刀、分手）"><button id="evadd" class="primary">記下</button></div>
+    ${n ? `<ul class="flist">${rows.join('')}</ul>` : ''}
+    <div class="muted">記${cur.name}或家人過去發生的事（國曆日期；長輩的事選「父親／母親」會用立太極看）。${n ? `已記 ${n} 件，流年有標 ${ny} 件。` : ''}事件跟著「匯出備份檔」一起匯出，給薇拉就能加進回測。</div>`;
+}
+$('#events').addEventListener('click', e => {
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.id === 'evadd') {
+    const date = $('#evd').value; if (!date) { $('#evd').focus(); return; }
+    cur.events = [...(cur.events || []), { date, theme: $('#evt').value, rel: $('#evr').value, text: $('#evx').value.trim() }].sort((a, b) => a.date.localeCompare(b.date));
+  } else if (t.dataset.evdel != null) {
+    if (!confirm('刪除這筆事件？')) return;
+    cur.events = cur.events.filter((_, i) => i !== +t.dataset.evdel);
+  } else return;
+  store.set('zw-people', people); renderEvents();
+});
+
 // 家人總覽（昆鴻 11/27）：選年份與「看誰」，列出每位命主大限／流年要注意的主題；點名字跳到那張盤並套上立太極。
 const REL = [['本人', '命宮'], ['配偶', '夫妻'], ['父親', '父母'], ['母親', '兄弟'], ['子女', '子女']];
 const SHORT_T = { 感情婚姻: '感情', 血光意外: '血光', 財運: '財運', 小人是非: '小人', 身體健康: '健康' };
 let ovYear = L.lunarOf(new Date()).year, ovRel = '本人', ovTag = '全部';
 const NEXT3 = (() => { const t = L.lunarOf(new Date()); return [0, 1, 2].map(k => [t.year + Math.floor((t.month - 1 + k) / 12), (t.month - 1 + k) % 12 + 1]); })();
+// 「看誰」→ 本命那一宮與位移（配偶＝夫妻、父親＝父母、母親＝兄弟、子女＝子女）
+function relOf(c, rel) {
+  const pn = REL.find(r => r[0] === rel)[1], nm = L.namesFrom(c.mingBranch), pal = Object.keys(nm).find(b => nm[b] === pn);
+  return { pn, pal, shift: (B.indexOf(pal) - B.indexOf(c.mingBranch) + 12) % 12 };
+}
 function ovPerson(p) {
   const c = computeChart({ year: p.y, month: p.m, day: p.d, hour: p.h, minute: p.min, gender: p.gender, calendar: p.cal, isLeapMonth: !!p.leap });
-  const pn = REL.find(r => r[0] === ovRel)[1], nm = L.namesFrom(c.mingBranch), pal = Object.keys(nm).find(b => nm[b] === pn);
-  const shift = (B.indexOf(pal) - B.indexOf(c.mingBranch) + 12) % 12;
+  const { pn, pal, shift } = relOf(c, ovRel);
   const d = L.daxianAt(c, ovYear - L.birthSolar(c).getFullYear() + 1);
   const S = d && SC.layerSigns(c, ovYear, { ...SCAN_OPTS, shift });
   const hit = f => S ? Object.keys(FOCUS).filter(t => f(t, S[t])) : null;
@@ -9648,7 +9707,7 @@ $('#save').addEventListener('click', e => {
     if (!E.hm.value) { $('#ferr').textContent = '請輸入時間'; return; }
     [h, min] = E.hm.value.split(':').map(Number);
   }
-  const p = { id: editing?.id || String(Date.now()), name: E.name.value.trim(), cal: E.cal.value, gender: E.gender.value, y: +E.y.value, m: +E.m.value, d: +E.d.value, leap: E.cal.value === 'lunar' && E.leap.value === '1', tmode: E.tmode.value, h, min, tag: E.tag.value, note: E.note.value };
+  const p = { id: editing?.id || String(Date.now()), name: E.name.value.trim(), cal: E.cal.value, gender: E.gender.value, y: +E.y.value, m: +E.m.value, d: +E.d.value, leap: E.cal.value === 'lunar' && E.leap.value === '1', tmode: E.tmode.value, h, min, tag: E.tag.value, note: E.note.value, ...(editing?.events ? { events: editing.events } : {}) }; // 編輯不洗掉事件紀錄
   try { computeChart({ year: p.y, month: p.m, day: p.d, hour: p.h, minute: p.min, gender: p.gender, calendar: p.cal, isLeapMonth: p.leap }); }
   catch (err) { $('#ferr').textContent = '生辰有誤：' + err.message; return; }
   people = editing ? people.map(x => x.id === p.id ? p : x) : [...people, p];
