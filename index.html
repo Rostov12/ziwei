@@ -8638,7 +8638,9 @@ svg.arrows { position: absolute; inset: 0; width: 100%; height: 100%; pointer-ev
 /* 表單 */
 dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink); width: min(520px, 94vw); padding: 14px; }
 dialog::backdrop { background: #0007; }
-#ov { width: min(720px, 96vw); }
+#ov, #hp { width: min(720px, 96vw); }
+.nx { background: var(--panel); color: var(--ink); border: 1px solid var(--line); } .nx summary { cursor: pointer; } .nx button { margin: 4px 4px 0 0; font-size: 12px; min-height: 30px; }
+#hp h4 { margin: 10px 0 4px; font-size: 14px; } #hp p { margin: 2px 0; font-size: 13px; } #hp .muted { font-size: 12px; color: var(--muted); }
 .ovhead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; } .ovhead .sp { flex: 1; }
 #ov table { width: 100%; border-collapse: collapse; font-size: 13px; }
 #ov th, #ov td { text-align: left; padding: 5px 4px; border-top: 1px solid var(--line); vertical-align: top; }
@@ -8692,6 +8694,7 @@ dialog::backdrop { background: #0007; }
     <button id="more" aria-label="更多">⋯</button>
   </div>
   <div class="bk" id="bk" hidden></div>
+  <details class="bk nx" id="nx" hidden></details>
   <div class="boardwrap"><div class="grid" id="grid"></div><svg class="arrows" id="arrows"></svg></div>
   <div class="bar" id="bar"></div>
   <div class="tools">
@@ -8730,6 +8733,7 @@ dialog::backdrop { background: #0007; }
     <button value="ov">家人總覽（一次看所有人）</button>
     <button value="edit">編輯目前命主</button>
     <button value="del">刪除目前命主</button>
+    <button value="hp">合盤（兩個人）</button>
     <button value="png">存成圖片（盤＋要注意）</button>
     <button value="export" id="expbtn">匯出備份檔</button>
     <button value="import">匯入備份檔</button>
@@ -8743,6 +8747,12 @@ dialog::backdrop { background: #0007; }
     <select id="ovrel" aria-label="看誰"></select><select id="ovtag" aria-label="分類"></select>
     <span class="sp"></span><button data-ovclose>關閉</button></div>
   <div id="ovbody"></div>
+</dialog>
+<dialog id="hp">
+  <div class="ovhead"><b>合盤</b><select id="hpa" aria-label="第一位"></select>×<select id="hpb" aria-label="第二位"></select>
+    <button data-hpy="-1" aria-label="前一年">◀</button><b id="hpy"></b><button data-hpy="1" aria-label="後一年">▶</button>
+    <span class="sp"></span><button data-hpclose>關閉</button></div>
+  <div id="hpbody"></div>
 </dialog>
 <input type="file" id="file" accept=".json,application/json" hidden>
 
@@ -9293,9 +9303,10 @@ $('#pf [name=zhi]').innerHTML = ZHI.map(([t, h]) => `<option value="${h}">${t}</
 
 function fillWho() {
   $('#who').innerHTML = people.length
-    ? people.map(p => `<option value="${p.id}">${p.name}（${p.tag}）</option>`).join('')
+    ? groupTags().map(([t, ps]) => `<optgroup label="${t}（${ps.length}）">${ps.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}</optgroup>`).join('')
     : '<option value="">尚無命主，按「新增」</option>';
   if (cur) $('#who').value = cur.id;
+  renderNext();
 }
 function load(id) {
   cur = people.find(p => p.id === id) || null;
@@ -9626,6 +9637,74 @@ $('#ov').addEventListener('click', e => {
   }
 });
 
+// 命主名單照分類分組（昆鴻 11/27：人多難找）
+const TAG_ORDER = ['自己', '家人', '朋友', '客人', '考題', '其他'];
+function groupTags() {
+  const tags = [...new Set(people.map(p => p.tag))].sort((a, b) => (TAG_ORDER.indexOf(a) + 1 || 99) - (TAG_ORDER.indexOf(b) + 1 || 99));
+  return tags.map(t => [t, people.filter(p => p.tag === t)]);
+}
+const chartOf = p => computeChart({ year: p.y, month: p.m, day: p.d, hour: p.h, minute: p.min, gender: p.gender, calendar: p.cal, isLeapMonth: !!p.leap });
+
+// 下個月提醒（昆鴻 11/27）：打開就看到下個農曆月有標中、重的人（只看本人、只看回測過的感情、血光）
+function renderNext() {
+  const [y, m] = NEXT3[1], hits = [];
+  for (const p of people) {
+    try {
+      const c = chartOf(p), ts = Object.keys(SCAN).map(t => [t, SC.scanMonth(SC.context(c, y, m), t, SCAN_OPTS)]).filter(([, r]) => r.level >= 2);
+      if (ts.length) hits.push([p, ts.map(([t, r]) => SHORT_T[t] + r.label).join('、')]);
+    } catch {}
+  }
+  const el = $('#nx'); el.hidden = !people.length;
+  el.innerHTML = `<summary>下個月（${MONTHS[m - 1]}月）要注意：${hits.length ? hits.length + ' 位' : '沒有人（只看感情、血光的中、重）'}</summary>${hits.map(([p, s]) => `<button data-nx="${p.id}">${p.name}・${s}</button>`).join('')}`;
+}
+$('#nx').addEventListener('click', e => {
+  const b = e.target.closest('[data-nx]'); if (!b) return;
+  const [y, m] = NEXT3[1]; load(b.dataset.nx);
+  Object.assign(sel, { year: y, month: m, day: null, date: null }); render(); $('#scan').scrollIntoView({ behavior: 'smooth' });
+});
+
+// 合盤（昆鴻 11/27）：規則照 ziwei-liunian 判讀規則第七節
+let hpA = null, hpB = null, hpYear = L.lunarOf(new Date()).year;
+const HP_POS = { 夫妻: '天生的另一半樣子', 福德: '心裡的依靠', 田宅: '像是對方的家', 子女: '像照顧大孩子' };
+const palOf = (c, star) => c.palaces.find(x => x.stars.some(s => s.name === star))?.name;
+const palAt = (c, b) => L.namesFrom(c.mingBranch)[b];
+function openHp() {
+  hpA = hpA && people.some(p => p.id === hpA) ? hpA : cur?.id;
+  hpB = hpB && people.some(p => p.id === hpB) && hpB !== hpA ? hpB : people.find(p => p.id !== hpA)?.id;
+  renderHp(); $('#hp').showModal();
+}
+function hpSide(a, b, ca, cb) {
+  const pos = palAt(cb, ca.mingBranch), fly = HUA_ORDER.map(h => [h, ca.sihua[h], palOf(cb, ca.sihua[h])]);
+  const say = { 祿: '帶給對方的', 忌: '最在意、最操心對方的事，是關心不是挑剔' };
+  return `<h4>${a.name} → ${b.name}</h4>
+    <p>${a.name}的命宮落在${b.name}的<b>${pos}</b>${HP_POS[pos] ? `：${HP_POS[pos]}` : ''}</p>
+    <p>${a.name}的生年四化落在${b.name}盤上：${fly.map(([h, s, pn]) => `化${h}${s}→<b>${pn}</b>${say[h] ? `（${say[h]}）` : ''}`).join('；')}</p>`;
+}
+function renderHp() {
+  const opts = id => groupTags().map(([t, ps]) => `<optgroup label="${t}">${ps.map(p => `<option value="${p.id}"${p.id === id ? ' selected' : ''}>${p.name}</option>`).join('')}</optgroup>`).join('');
+  $('#hpa').innerHTML = opts(hpA); $('#hpb').innerHTML = opts(hpB);
+  const g = L.yearGZ(hpYear); $('#hpy').textContent = `${hpYear} ${g.stem}${g.branch}`;
+  const a = people.find(p => p.id === hpA), b = people.find(p => p.id === hpB);
+  if (!a || !b || a === b) { $('#hpbody').innerHTML = '<p class="muted">請選兩位不同的命主</p>'; return; }
+  let ca, cb; try { ca = chartOf(a); cb = chartOf(b); } catch { $('#hpbody').innerHTML = '<p class="muted">生辰有誤，排不出盤</p>'; return; }
+  const fq = B[(B.indexOf(g.branch) + 10) % 12]; // 流年夫妻＝流年命宮逆數第三宮
+  const yr = (p, c) => `<p>${p.name}：流年命宮在本命<b>${palAt(c, g.branch)}</b>（心思放在這），流年夫妻宮是本命<b>${palAt(c, fq)}</b>（吵架時以為在吵這件事）</p>`;
+  const both = Array.from({ length: 12 }, (_, i) => i + 1).map(m => {
+    const f = c => Object.keys(SCAN).filter(t => SC.scanMonth(SC.context(c, hpYear, m), t, SCAN_OPTS).level >= 2);
+    const x = f(ca), y = f(cb); return x.length && y.length ? `${MONTHS[m - 1]}月（${a.name}${x.map(t => SHORT_T[t]).join('、')}／${b.name}${y.map(t => SHORT_T[t]).join('、')}）` : null;
+  }).filter(Boolean);
+  $('#hpbody').innerHTML = hpSide(a, b, ca, cb) + hpSide(b, a, cb, ca) +
+    `<h4>${hpYear} 年兩人比較</h4>${yr(a, ca)}${yr(b, cb)}
+    <h4>兩人同時要注意的月份</h4><p>${both.length ? both.join('、') : '沒有'}</p>
+    <p class="muted">規則同流年圖卡的合盤（位置對照、生年四化互飛、流年夫妻宮＝吵架說明書）。月份只看回測過的感情、血光，兩人同月都有中、重才列。這頁是提示，正式解讀前仍要先問兩人現況。</p>`;
+}
+$('#hp').addEventListener('change', e => { if (e.target.id === 'hpa') hpA = e.target.value; if (e.target.id === 'hpb') hpB = e.target.value; renderHp(); });
+$('#hp').addEventListener('click', e => {
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.dataset.hpy) { hpYear += +t.dataset.hpy; renderHp(); }
+  if (t.dataset.hpclose != null) $('#hp').close();
+});
+
 function nameOf(b) { return chart.palaces[B.indexOf(b)].name; }
 // 小星意思（只收大耕筆記寫過的；雜曜不能脫離主星輔星單獨論斷——高階08）
 const STAR_NOTE = {
@@ -9757,6 +9836,7 @@ $('#add').addEventListener('click', () => openForm(null));
 $('#more').addEventListener('click', () => $('#menu').showModal());
 $('#menu').addEventListener('close', () => {
   const v = $('#menu').returnValue;
+  if (v === 'hp') openHp();
   if (v === 'ov') { renderOv(); $('#ov').showModal(); }
   if (v === 'edit' && cur) openForm(cur);
   if (v === 'del' && cur && confirm(`刪除「${cur.name}」？（建議先匯出備份）`)) { people = people.filter(x => x.id !== cur.id); store.set('zw-people', people); load(people[0]?.id); }
