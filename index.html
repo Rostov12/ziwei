@@ -9116,7 +9116,8 @@ const THEMES = {
   身體健康: {
     gate: '父疾',
     sign(ctx, base, lay, natal) {
-      const c = count(ctx, line(base, '疾厄'), lay, natal);
+      // 本命煞忌一律算（昆鴻 11/27）：筆記雙羊＝本羊＋年羊，實際案例常靠本命那顆湊成
+      const c = count(ctx, line(base, '疾厄'), lay, true);
       if (c.羊 >= 2 || c.陀 >= 2 || c.忌 >= 2 || (sha(c) >= 1 && c.忌 >= 1)) return { c };
       return null;
     },
@@ -9386,7 +9387,7 @@ const FOCUS = {
   血光意外: { line: '父疾線', what: '受傷、血光、開刀、生產', trust: '回測普通' },
   財運: { line: '財福／子田線', what: '破財、投資失利', trust: '已收緊，約四成年份仍會標' },
   小人是非: { line: '兄僕線', what: '小人、口舌、朋友糾紛', trust: '已收緊，約四成年份仍會標' },
-  身體健康: { line: '父疾線', what: '生病、就醫', trust: '回測抓不太到' },
+  身體健康: { line: '父疾線', what: '生病、就醫', trust: '回測偏弱（約四分之一年份會標）' },
 };
 const MK = { 羊: '羊', 陀: '陀', 火鈴: '火鈴', 忌: '忌', 鸞喜: '鸞喜' };
 const marksTxt = sg => sg ? [...new Set(sg.c.list.filter(x => MK[x.k]).map(x => (x.lay === '本' ? '本' : x.lay) + MK[x.k]))].join('、') : '';
@@ -9416,7 +9417,7 @@ function renderFocus() {
   el.innerHTML = `<h3>這個大限、這一年要注意${shift ? `<small>　以${sel.tjLabel}立太極（看那個人）</small>` : ''}</h3>
     <div class="fcols"><div><div class="fh">大限 ${palStem(dxb)}${dxb}（命主 ${dx.from}–${dx.to} 歲）</div><ul class="flist">${dxList}</ul></div>
     <div><div class="fh">流年 ${y} ${g.stem}${g.branch}</div><ul class="flist">${yList}</ul></div></div>
-    <div class="muted">看法：那條線上有兩顆以上煞忌（各主題細則同下方應期掃描），身體健康、血光意外要運限命宮走進本命父疾線才算。可信度：${Object.entries(FOCUS).map(([t, F]) => `${t}${F.trust}`).join('、')}。本命煞忌只當背景，不單獨算。</div>`;
+    <div class="muted">看法：那條線上有兩顆以上煞忌（各主題細則同下方應期掃描），身體健康、血光意外要運限命宮走進本命父疾線才算。可信度：${Object.entries(FOCUS).map(([t, F]) => `${t}${F.trust}`).join('、')}。本命煞忌只當背景（身體健康例外：本命的也算進雙羊、雙陀）。</div>`;
 }
 const SCAN_OPTS = { natal: false };
 const SCAN = {
