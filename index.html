@@ -9650,7 +9650,12 @@ function drawArrows() {
     const col = cs.getPropertyValue(COLOR[f.hua]), off = (i - 1.5) * 5;
     const [tx, ty] = ctr(f.to), len = Math.hypot(tx - sx, ty - sy), nx = -(ty - sy) / len * off, ny = (tx - sx) / len * off;
     body += `<line x1="${sx + nx}" y1="${sy + ny}" x2="${tx + nx - (tx - sx) / len * 22}" y2="${ty + ny - (ty - sy) / len * 22}" stroke="${col}" stroke-width="2.5" marker-end="url(#m${f.hua})" opacity=".85"/>`;
-    if (f.hua === '忌') { const [ox, oy] = ctr(L.opposite(f.to)); body += `<line x1="${tx}" y1="${ty}" x2="${ox}" y2="${oy}" stroke="${col}" stroke-width="2" stroke-dasharray="5 5" opacity=".6"/>`; }
+    // 化忌沖對宮：虛線從化忌落點指向被沖的宮，末端箭頭＋「沖」字（昆鴻 11/27：原本沒標，看不懂是什麼線）
+    if (f.hua === '忌') {
+      const [ox, oy] = ctr(L.opposite(f.to)), ol = Math.hypot(ox - tx, oy - ty), ux = (ox - tx) / ol, uy = (oy - ty) / ol;
+      body += `<line x1="${tx}" y1="${ty}" x2="${ox - ux * 22}" y2="${oy - uy * 22}" stroke="${col}" stroke-width="2" stroke-dasharray="5 5" marker-end="url(#m忌)" opacity=".7"/>`
+        + `<text x="${ox - ux * 38}" y="${oy - uy * 38 + 4}" text-anchor="middle" font-size="12" font-weight="700" fill="${col}" stroke="${cs.getPropertyValue('--panel')}" stroke-width="3" paint-order="stroke">沖</text>`;
+    }
   });
   svg.innerHTML = defs + body;
 }
