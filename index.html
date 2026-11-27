@@ -9312,6 +9312,37 @@ function chartTags(c) {
   g('日月並明', m === '丑' && sb('太陽') === '巳' && sb('太陰') === '酉', ['乙', '辛', '丙', '丁'].includes(stem) ? [stem + '年'] : [], bad(m));
   g('紫微辰戌遇破軍', ['辰', '戌'].includes(m) && has(m, '紫微') && has(m, '天相'), [], bad(m));
   g('梁居午位', m === '午' && has(m, '天梁'), ['丁', '己', '癸'].includes(stem) ? [stem + '年'] : [], bad(m));
+  // 《斗數全書》卷一定富局／定貴局／定貧賤局＋卷二三（docs/古書格局清單.md；照字面排不出來的四格不做，要空亡、廟旺表的等昆鴻定）
+  const nb = (b, k) => B[(bi(b) + k + 12) % 12];
+  const jia = (b, x, y) => (has(nb(b, 1), x) && y(nb(b, -1))) || (has(nb(b, -1), x) && y(nb(b, 1)));
+  const isS = n => b => has(b, n), lu = b => has(b, '祿存') || sb(c.sihua.祿) === b;
+  const nm = L.namesFrom(m), at = n => Object.keys(nm).find(b => nm[b] === n), tz = at('田宅'), cb = at('財帛'), shen = c.shenBranch;
+  const Q = (name, ok, plus = [], minus = bad(m)) => g(name, ok, plus, minus);
+  const kind = {};
+  const mark = (k, ns) => ns.forEach(n => kind[n] = k);
+  Q('日月夾財', [m, cb].some(b => has(b, '武曲') && jia(b, '太陽', isS('太陰'))));
+  Q('財祿夾馬', has(m, '天馬') && jia(m, '武曲', lu));
+  Q('日月照璧', has(tz, '太陽') && has(tz, '太陰'), [], bad(tz));
+  Q('金燦光輝', m === '午' && mains.join('') === '太陽');
+  Q('日月夾命', jia(m, '太陽', isS('太陰')), sees(m, ['左輔', '右弼', '天魁', '天鉞', '文昌', '文曲']));
+  Q('日出扶桑', sb('太陽') === '卯' && (m === '卯' || at('官祿') === '卯'));
+  Q('月朗天門', m === '亥' && has(m, '太陰'));
+  Q('月生滄海', sb('太陰') === '子' && tz === '子', [], bad(tz));
+  Q('輔弼拱主', has(m, '紫微') && ((sees(m, ['左輔']).length && sees(m, ['右弼']).length) || jia(m, '左輔', isS('右弼'))));
+  Q('君臣慶會（原書）', has(m, '紫微') && has(m, '左輔') && has(m, '右弼'), sees(m, ['天相', '武曲', '太陰']));
+  Q('坐貴向貴', (has(m, '天魁') && sees(m, ['天鉞']).length > 0) || (has(m, '天鉞') && sees(m, ['天魁']).length > 0));
+  Q('七殺朝斗', ['寅', '申', '子', '午'].includes(m) && has(m, '七殺'));
+  Q('紫府朝垣', ['寅', '申'].includes(m) && has(m, '紫微') && has(m, '天府'), [...sees(m, ['祿存']), ...hua(m)]);
+  Q('刑囚夾印', [m, shen].some(b => has(b, '天刑') && has(b, '廉貞')));
+  Q('武曲守垣', m === '卯' && has(m, '武曲'));
+  const yu = [m, shen].find(b => has(b, '巨門') && ['子', '午'].includes(b));
+  Q('石中隱玉', !!yu, yu ? hua(yu) : [], yu ? bad(yu) : []);
+  Q('財與囚仇', (has(m, '武曲') && has(shen, '廉貞')) || (has(m, '廉貞') && has(shen, '武曲')), [], []);
+  Q('兩重華蓋', has(m, '祿存') && sb(c.sihua.祿) === m && sees(m, ['地空', '地劫']).length > 0, [], sees(m, ['地空', '地劫']));
+  mark('全書・富', ['日月夾財', '財祿夾馬', '日月照璧', '金燦光輝']);
+  mark('全書・貴', ['日月夾命', '日出扶桑', '月朗天門', '月生滄海', '輔弼拱主', '君臣慶會（原書）', '坐貴向貴', '七殺朝斗', '紫府朝垣', '刑囚夾印', '武曲守垣', '石中隱玉']);
+  mark('全書・貧賤', ['財與囚仇', '兩重華蓋']);
+  G.forEach(x => x.kind = kind[x.name] || '佳妤說格局');
   return { 生年天干: stem + '年', 盤型: '紫微在' + sb('紫微'), 命宮主星: mains.length ? mains.join('') : '命無主星', 五行局: c.bureau.name, 格局: G };
 }
 
@@ -9706,7 +9737,7 @@ function renderCat() {
   const groups = new Map(), put = (k, p, sub = '') => { if (!groups.has(k)) groups.set(k, []); groups.get(k).push([p, sub]); };
   for (const p of people.filter(p => catTag === '全部' || p.tag === catTag)) {
     let t; try { t = SC.chartTags(chartOf(p)); } catch { put('生辰有誤', p); continue; }
-    if (catBy === '格局') { t.格局.forEach(g => put(g.name, p, `${g.plus.length ? '加分：' + g.plus.join('、') : '沒有加分條件'}${g.minus.length ? '；減分：' + g.minus.join('、') : '；沒見煞忌'}`)); if (!t.格局.length) put('沒有符合骨架的格局', p); }
+    if (catBy === '格局') { t.格局.forEach(g => put(`${g.name}（${g.kind}）`, p, `${g.plus.length ? '加分：' + g.plus.join('、') : '沒有加分條件'}${g.minus.length ? '；減分：' + g.minus.join('、') : '；沒見煞忌'}`)); if (!t.格局.length) put('沒有符合骨架的格局', p); }
     else if (catBy === '自訂標籤') { (p.tags?.length ? p.tags : ['沒有標籤']).forEach(k => put(k, p)); }
     else put(t[catBy], p);
   }
@@ -9714,7 +9745,7 @@ function renderCat() {
   const keys = [...groups.keys()].sort((a, b) => order ? order(a) - order(b) : groups.get(b).length - groups.get(a).length);
   $('#catbody').innerHTML = people.length ? keys.map(k => `<h4>${k}（${groups.get(k).length}）</h4>${groups.get(k).map(([p, sub]) => sub
       ? `<button data-cat="${p.id}">${p.name}</button><small>${sub}</small>` : `<button data-cat="${p.id}">${p.name}</button>`).join('')}`).join('') +
-    (catBy === '格局' ? '<p class="muted" style="font-size:12px;color:var(--muted)">只檢查骨架（佳妤說格局 EP1–8 筆記）：君臣慶會、丹墀桂墀、日麗中天、太陽會文昌於官祿、擎羊火星威權、日月並明、紫微辰戌遇破軍、梁居午位。格局要足夠條件綜合評估才成格，這裡只是候選，加分、減分列給你判斷。</p>' : '')
+    (catBy === '格局' ? '<p class="muted" style="font-size:12px;color:var(--muted)">只檢查骨架：佳妤說格局 EP1–8 的 8 格，加《斗數全書》卷一定富局、定貴局、定貧賤局與卷二、三的 18 格（原文與判法見 docs/古書格局清單.md）。君臣慶會兩種說法都列。貧賤局是凶格。格局要足夠條件綜合評估才成格，這裡只是候選，加分、減分列給你判斷。</p>' : '')
     : '<p class="muted">尚無命主</p>';
 }
 const STEMS_ORDER = '甲乙丙丁戊己庚辛壬癸';
