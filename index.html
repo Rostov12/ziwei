@@ -8598,6 +8598,7 @@ button.primary { background: var(--btn); color: var(--btnink); border-color: var
 .st.misc { color: var(--misc); }
 .st .br { font-size: 9px; color: var(--muted); }
 .sui { font-size: 10px; color: var(--misc); } /* 歲建十二（本命） */
+.sui.cs { color: var(--aux); } /* 長生十二 */
 .hua { display: block; width: 14px; height: 14px; margin-top: 1px; font-size: 10px; line-height: 14px; text-align: center; color: #fff; border-radius: 2px; font-weight: 700; letter-spacing: 0; }
 .k本 { background: var(--L本); } .k大 { background: var(--L大); } .k年 { background: var(--L年); } .k月 { background: var(--L月); } .k日 { background: var(--L日); }
 .foot { display: flex; justify-content: space-between; align-items: flex-end; gap: 2px; font-size: 11px; line-height: 1.25; margin-top: 2px; }
@@ -8877,6 +8878,12 @@ function computeChart(input, options = {}) {
   add('截空', 'misc', [8, 6, 4, 2, 0, 8, 6, 4, 2, 0][STEMS.indexOf(yearStem)]); // 學會一律取陽支（2026 大賽命例01 乙年在午）
   // 歲建十二：從生年地支起順排。大耕高階08：只用本命，不用流年歲建
   ['歲建', '晦氣', '喪門', '貫索', '官符', '小耗', '大耗', '龍德', '白虎', '天德', '弔客', '病符'].forEach((n, i) => add(n, 'sui', y + i));
+  // 天哭、天虛：子年在午，天哭逆行、天虛順行（大耕高階05：運限子田見天哭天虛弔客＝家有喪事）
+  add('天哭', 'misc', 6 - y);
+  add('天虛', 'misc', 6 + y);
+  // 長生十二：水土局申、木局亥、金局巳、火局寅起；陽男陰女順行、陰男陽女逆行（大耕高階08：本命大限流年皆可看）
+  const cs0 = { 水: 8, 土: 8, 木: 11, 金: 5, 火: 2 }[nayin.at(-1)], fwd = (STEMS.indexOf(yearStem) % 2 === 0) === (gender === 'M');
+  ['長生', '沐浴', '冠帶', '臨官', '帝旺', '衰', '病', '死', '墓', '絕', '胎', '養'].forEach((n, i) => add(n, 'cs', cs0 + (fwd ? i : -i)));
 
   return {
     input: { ...input },
@@ -9215,15 +9222,21 @@ function scanYear(chart, year, opts) {
 
 // 大限／流年層級的「要注意什麼」（昆鴻 11/27：先做這大限、這一年，應期晚點）。
 // 回傳 {主題: {daxian, year, gate}}：daxian＝大限那條線有跡象（只算本命＋大限）、year＝流年那條線有跡象（算到流年）、gate＝大限／流年／小限命宮走進本命那條線。
+// opts.shift：立太極，各層命宮一律往後挪 shift 宮（例：兄弟宮立太極＝挪到兄弟宮那格）；煞忌星位不動。
+// 回傳另加 dgate＝大限命宮走進（太極後）本命那條線。
 function layerSigns(chart, year, opts = {}) {
-  const { natal = false } = opts;
-  const ctx = context(chart, year, 1); // 月份層級不用，任取一月
+  const { natal = false, shift = 0 } = opts;
+  const c0 = context(chart, year, 1); // 月份層級不用，任取一月
+  const sh = b => b && B[(bi(b) + shift) % 12];
+  const ctx = shift ? { ...c0, chart: { ...chart, mingBranch: sh(chart.mingBranch) }, dx: c0.dx && { ...c0.dx, branch: sh(c0.dx.branch) },
+    ys: { ...c0.ys, branch: sh(c0.ys.branch) }, xx: sh(c0.xx) } : c0;
   return Object.fromEntries(THEME_NAMES.map(t => {
     const T = THEMES[t];
-    const ln = line(chart.mingBranch, { 父疾: '疾厄', 兄弟: '兄弟', 夫妻: '夫妻', 財帛: '財帛' }[T.gate]);
+    const ln = line(ctx.chart.mingBranch, { 父疾: '疾厄', 兄弟: '兄弟', 夫妻: '夫妻', 財帛: '財帛' }[T.gate]);
     const gate = [ctx.dx?.branch, ctx.ys.branch, ctx.xx].some(b => b && ln.includes(b));
+    const dgate = !!ctx.dx && ln.includes(ctx.dx.branch);
     // dy＝流年的煞忌打進大限那條線（筆記「運限父疾線」含大限線；命例06 2022 躁症＝流年羊忌落大限疾厄）
-    return [t, { gate, year: T.sign(ctx, ctx.ys.branch, '年', natal), daxian: ctx.dx ? T.sign(ctx, ctx.dx.branch, '大', natal) : null,
+    return [t, { gate, dgate, year: T.sign(ctx, ctx.ys.branch, '年', natal), daxian: ctx.dx ? T.sign(ctx, ctx.dx.branch, '大', natal) : null,
       // 財運不看 dy：回測沒多抓到任何一件，隨機年 45%→66%；感情不看 dy：年層級 7/13 vs 隨機 45% → 5/13 vs 26%（昆鴻 11/27 同意）
       dy: ctx.dx && t !== '財運' && t !== '感情婚姻' ? T.sign(ctx, ctx.dx.branch, '年', natal) : null }];
   }));
@@ -9306,7 +9319,7 @@ function render() {
   let html = '';
   for (const p of chart.palaces) {
     const [r, c] = POS[p.branch];
-    const stars = p.stars.filter(s => s.type !== 'sui').map(s => {
+    const stars = p.stars.filter(s => s.type !== 'sui' && s.type !== 'cs').map(s => {
       const hs = [];
       if (s.sihua) hs.push(['本', s.sihua]);
       for (const l of lys) if (l.k !== '日' && l.hua[s.name]) hs.push([l.k, l.hua[s.name]]); // 流日四化不標（昆鴻 11/27）
@@ -9316,7 +9329,7 @@ function render() {
     html += `<div class="cell${sel.pick === p.branch ? ' pick' : ''}${sel.taiji === p.branch ? ' tj' : ''}" style="grid-row:${r};grid-column:${c}" data-b="${p.branch}">
       <div class="stars">${stars}</div>
       <div><div>${marks}</div><div class="foot">
-        <div class="lnames"><div class="rng">${rng[p.branch]}</div><div class="sui">${p.stars.filter(s => s.type === 'sui').map(s => s.name).join('')}</div>${tjNames ? `<div class="Ltj">${sel.tjPrefix}之${SHORT[tjNames[p.branch]]}</div>` : ''}</div>
+        <div class="lnames"><div class="rng">${rng[p.branch]}</div><div class="sui">${p.stars.filter(s => s.type === 'sui').map(s => s.name).join('')}</div><div class="sui cs">${p.stars.filter(s => s.type === 'cs').map(s => s.name).join('')}</div>${tjNames ? `<div class="Ltj">${sel.tjPrefix}之${SHORT[tjNames[p.branch]]}</div>` : ''}</div>
         <div class="gz">${[...lys].reverse().map(l => `<div class="L${l.k}">${l.k}${SHORT[l.names[p.branch]]}</div>`).join('')}<div>${p.stem}${p.branch} <b>${p.name}</b></div></div>
       </div></div></div>`;
   }
@@ -9382,16 +9395,17 @@ function renderFocus() {
   const dx = sel.dx !== 'tong' && sel.dx != null ? L.daxianList(chart)[sel.dx] : null;
   const y = sel.year || (dx ? L.yearsOfDaxian(chart, dx)[0] : null);
   if (!y || !dx) { el.innerHTML = '<h3>這個大限、這一年要注意</h3><div class="muted">選一個大限和流年就會整理。</div>'; return; }
-  const S = SC.layerSigns(chart, y, SCAN_OPTS);
+  // 立太極時整個面板換成那個人（各層命宮一起挪），昆鴻 11/27
+  const shift = sel.taiji && sel.taiji !== chart.mingBranch ? (B.indexOf(sel.taiji) - B.indexOf(chart.mingBranch) + 12) % 12 : 0;
+  const S = SC.layerSigns(chart, y, { ...SCAN_OPTS, shift }), dxb = B[(B.indexOf(dx.branch) + shift) % 12];
   const row = (t, sg, gate, extra) => {
     const F = FOCUS[t], on = !!sg && (gate || sg.birth);
     return `<li class="${on ? 'hit' : ''}"><b>${t}</b>${on ? `　<span class="tag">注意</span>　${F.what}${sg.note ? `（${sg.note}）` : ''}<br><small>${extra}${F.line}：${marksTxt(sg)}</small>`
       : sg && !gate ? `　<small>線上有煞忌，但運限命宮沒走進本命${F.line}（沒引動）</small>` : '　<small>—</small>'}</li>`;
   };
   const needGate = t => t === '身體健康' || t === '血光意外';
-  const nn = L.namesFrom(chart.mingBranch), fjNatal = Object.keys(nn).filter(b => nn[b] === '疾厄' || nn[b] === '父母');
   const dxList = Object.keys(FOCUS).map(t => {
-    const x = S[t], g = !needGate(t) || fjNatal.includes(dx.branch); // 大限命宮走進本命父疾線才算引動
+    const x = S[t], g = !needGate(t) || x.dgate; // 大限命宮走進本命父疾線才算引動
     return row(t, x.daxian, g, '大限');
   }).join('');
   const yList = Object.keys(FOCUS).map(t => {
@@ -9399,8 +9413,8 @@ function renderFocus() {
     return row(t, sg, !needGate(t) || x.gate, which);
   }).join('');
   const g = L.yearGZ(y);
-  el.innerHTML = `<h3>這個大限、這一年要注意</h3>
-    <div class="fcols"><div><div class="fh">大限 ${palStem(dx.branch)}${dx.branch}（${dx.from}–${dx.to} 歲）</div><ul class="flist">${dxList}</ul></div>
+  el.innerHTML = `<h3>這個大限、這一年要注意${shift ? `<small>　以${sel.tjLabel}立太極（看那個人）</small>` : ''}</h3>
+    <div class="fcols"><div><div class="fh">大限 ${palStem(dxb)}${dxb}（命主 ${dx.from}–${dx.to} 歲）</div><ul class="flist">${dxList}</ul></div>
     <div><div class="fh">流年 ${y} ${g.stem}${g.branch}</div><ul class="flist">${yList}</ul></div></div>
     <div class="muted">看法：那條線上有兩顆以上煞忌（各主題細則同下方應期掃描），身體健康、血光意外要運限命宮走進本命父疾線才算。可信度：${Object.entries(FOCUS).map(([t, F]) => `${t}${F.trust}`).join('、')}。本命煞忌只當背景，不單獨算。</div>`;
 }
