@@ -8586,6 +8586,8 @@ button.primary { background: var(--btn); color: var(--btnink); border-color: var
 .cell { background: var(--panel); padding: 3px 3px 2px; display: flex; flex-direction: column; justify-content: space-between; min-width: 0; cursor: pointer; position: relative; }
 .cell.pick { background: var(--pick); }
 .cell.tj { box-shadow: inset 0 0 0 2px var(--tj); }
+/* 點宮時三方四正（本宮、對宮、三合兩宮）框線加深；用 outline 不跟立太極的框打架 */
+.cell.sf { outline: 2px solid var(--btn); outline-offset: -3px; }
 .stars { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 0 1px; }
 .st { display: flex; flex-direction: column; align-items: center; width: 15px; font-size: 13px; line-height: 14px; }
 .st .n { display: block; width: 1em; word-break: break-all; text-align: center; }
@@ -9342,6 +9344,7 @@ function render() {
   const monthAt = yg ? Object.fromEntries(MONTHS.map((m, i) => [L.liuyueBranch(chart, yg.branch, i + 1), m + '月'])) : {};
   const tjNames = sel.taiji && sel.taiji !== chart.mingBranch || sel.tjPrefix?.length > 1 ? L.namesFrom(sel.taiji) : null;
   let html = '';
+  const sf = sel.pick ? [0, 4, 6, 8].map(k => B[(B.indexOf(sel.pick) + k) % 12]) : [];
   for (const p of chart.palaces) {
     const [r, c] = POS[p.branch];
     const stars = p.stars.filter(s => s.type !== 'sui' && s.type !== 'cs').map(s => {
@@ -9351,7 +9354,7 @@ function render() {
       return `<span class="st ${s.type}"><span class="n">${s.name}</span>${s.brightness ? `<span class="br">${s.brightness}</span>` : ''}${hs.map(([k, h]) => `<span class="hua k${k}" title="${k}化${h}">${h}</span>`).join('')}</span>`;
     }).join('') + flow.filter(([, b]) => b === p.branch).map(([n]) => `<span class="st flow L${n[0]}${/[羊陀]$/.test(n) ? ' sha4' : ''}"><span class="n">${n}</span></span>`).join('');
     const marks = [p.isShen && '身宮', xiao === p.branch && '小限', monthAt[p.branch]].filter(Boolean).map(t => `<span class="chip">${t}</span>`).join('');
-    html += `<div class="cell${sel.pick === p.branch ? ' pick' : ''}${sel.taiji === p.branch ? ' tj' : ''}" style="grid-row:${r};grid-column:${c}" data-b="${p.branch}">
+    html += `<div class="cell${sel.pick === p.branch ? ' pick' : ''}${sf.includes(p.branch) ? ' sf' : ''}${sel.taiji === p.branch ? ' tj' : ''}" style="grid-row:${r};grid-column:${c}" data-b="${p.branch}">
       <div class="stars">${stars}</div>
       <div><div>${marks}</div><div class="foot">
         <div class="lnames"><div class="rng">${rng[p.branch]}</div><div class="sui">${p.stars.filter(s => s.type === 'sui').map(s => s.name).join('')}</div><div class="sui cs">${p.stars.filter(s => s.type === 'cs').map(s => s.name).join('')}</div>${tjNames ? `<div class="Ltj">${sel.tjPrefix}之${SHORT[tjNames[p.branch]]}</div>` : ''}</div>
