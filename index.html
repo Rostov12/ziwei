@@ -8638,7 +8638,8 @@ svg.arrows { position: absolute; inset: 0; width: 100%; height: 100%; pointer-ev
 /* 表單 */
 dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink); width: min(520px, 94vw); padding: 14px; }
 dialog::backdrop { background: #0007; }
-#ov, #hp { width: min(720px, 96vw); }
+#ov, #hp, #cat { width: min(720px, 96vw); }
+#cat h4 { margin: 10px 0 4px; font-size: 14px; } #cat button[data-cat] { margin: 2px 4px 2px 0; font-size: 12px; min-height: 30px; } #cat small { display: block; color: var(--muted); font-size: 11px; margin: -2px 0 4px; }
 .nx { background: var(--panel); color: var(--ink); border: 1px solid var(--line); } .nx summary { cursor: pointer; } .nx button { margin: 4px 4px 0 0; font-size: 12px; min-height: 30px; }
 #hp h4 { margin: 10px 0 4px; font-size: 14px; } #hp p { margin: 2px 0; font-size: 13px; } #hp .muted { font-size: 12px; color: var(--muted); }
 .ovhead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; } .ovhead .sp { flex: 1; }
@@ -8720,6 +8721,7 @@ dialog::backdrop { background: #0007; }
     <label id="zhiL">時辰<select name="zhi"></select></label>
     <label id="hmL">時間<input name="hm" type="time"></label>
     <label>分類<select name="tag"><option>自己</option><option>家人</option><option>朋友</option><option>客人</option><option>考題</option><option>其他</option></select></label>
+    <label class="full">自訂標籤<input name="tags" placeholder="用空白或逗號分隔，例如：離婚 開刀 創業"></label>
     <label class="full">備註<textarea name="note" rows="2"></textarea></label>
     <div class="err full" id="ferr"></div>
     <div class="full" style="display:flex;gap:8px;justify-content:flex-end">
@@ -8733,6 +8735,7 @@ dialog::backdrop { background: #0007; }
     <button value="ov">家人總覽（一次看所有人）</button>
     <button value="edit">編輯目前命主</button>
     <button value="del">刪除目前命主</button>
+    <button value="cat">命例分類（天干、盤型、格局、標籤）</button>
     <button value="hp">合盤（兩個人）</button>
     <button value="png">存成圖片（盤＋要注意）</button>
     <button value="export" id="expbtn">匯出備份檔</button>
@@ -8747,6 +8750,11 @@ dialog::backdrop { background: #0007; }
     <select id="ovrel" aria-label="看誰"></select><select id="ovtag" aria-label="分類"></select>
     <span class="sp"></span><button data-ovclose>關閉</button></div>
   <div id="ovbody"></div>
+</dialog>
+<dialog id="cat">
+  <div class="ovhead"><b>命例分類</b><select id="catby" aria-label="分類方式"></select><select id="cattag" aria-label="命主分類"></select>
+    <span class="sp"></span><button data-catclose>關閉</button></div>
+  <div id="catbody"></div>
 </dialog>
 <dialog id="hp">
   <div class="ovhead"><b>合盤</b><select id="hpa" aria-label="第一位"></select>×<select id="hpb" aria-label="第二位"></select>
@@ -9282,7 +9290,32 @@ function layerSigns(chart, year, opts = {}) {
   }));
 }
 
-return { context, THEME_NAMES, scanMonth, scanYear, shiftCtx, layerSigns };
+// 命例分類標籤（昆鴻 11/27）：生年天干、盤型（紫微在哪宮）、命宮主星、五行局、格局候選。
+// 格局只判「骨架」（佳妤說格局 EP1–8 筆記），加分、減分條件列出來給人看；格局要足夠條件綜合評估，不自動定成格。
+const SHA6 = ['擎羊', '陀羅', '火星', '鈴星', '地空', '地劫'];
+function chartTags(c) {
+  const has = (b, n) => c.palaces[bi(b)].stars.some(s => s.name === n), sb = n => L.starBranch(c, n);
+  const sf = b => [0, 4, 6, 8].map(k => B[(bi(b) + k) % 12]); // 本宮、三合、對宮
+  const sees = (b, ns) => ns.filter(n => sf(b).some(x => has(x, n)));
+  const hua = b => ['祿', '權', '科'].filter(h => sf(b).includes(sb(c.sihua[h]))).map(h => '化' + h);
+  const bad = b => [...sees(b, SHA6), ...(sf(b).includes(sb(c.sihua.忌)) ? ['化忌'] : [])];
+  const m = c.mingBranch, stem = c.lunar.yearGanZhi[0], mains = c.palaces[bi(m)].stars.filter(s => s.type === 'main').map(s => s.name);
+  const G = [], g = (name, ok, plus, minus) => { if (ok) G.push({ name, plus, minus }); };
+  const jc = sees(m, ['左輔', '右弼', '天魁', '天鉞', '天府', '天相']);
+  g('君臣慶會', has(m, '紫微') && jc.length >= 2, jc, bad(m));
+  g('丹墀桂墀', ['卯', '辰', '巳'].includes(sb('太陽')) && ['酉', '戌', '亥'].includes(sb('太陰')) && (has(m, '太陽') || has(m, '太陰')),
+    [...sees(m, ['文昌', '文曲', '天魁', '天鉞']), ...hua(m)], bad(m));
+  g('日麗中天', sb('太陽') === '午' && (m === '午' || c.shenBranch === '午'), stem === '庚' ? ['庚年太陽化祿'] : stem === '辛' ? ['辛年太陽化權'] : [], bad('午'));
+  const gl = B[(bi(m) + 4) % 12]; // 官祿＝命宮逆數第九宮
+  g('太陽會文昌於官祿', has(gl, '太陽') && ['寅', '卯', '辰', '巳', '午', '未'].includes(gl) && sees(gl, ['文昌']).length > 0, sees(gl, ['左輔', '右弼', '天魁', '天鉞']), bad(gl));
+  g('擎羊火星威權', ['辰', '戌', '丑', '未'].includes(m) && has(m, '擎羊') && has(m, '火星'), sees(m, ['貪狼', '武曲']), []);
+  g('日月並明', m === '丑' && sb('太陽') === '巳' && sb('太陰') === '酉', ['乙', '辛', '丙', '丁'].includes(stem) ? [stem + '年'] : [], bad(m));
+  g('紫微辰戌遇破軍', ['辰', '戌'].includes(m) && has(m, '紫微') && has(m, '天相'), [], bad(m));
+  g('梁居午位', m === '午' && has(m, '天梁'), ['丁', '己', '癸'].includes(stem) ? [stem + '年'] : [], bad(m));
+  return { 生年天干: stem + '年', 盤型: '紫微在' + sb('紫微'), 命宮主星: mains.length ? mains.join('') : '命無主星', 五行局: c.bureau.name, 格局: G };
+}
+
+return { context, THEME_NAMES, scanMonth, scanYear, shiftCtx, layerSigns, chartTags };
 })();
 
 const $ = s => document.querySelector(s);
@@ -9663,6 +9696,35 @@ $('#nx').addEventListener('click', e => {
   Object.assign(sel, { year: y, month: m, day: null, date: null }); render(); $('#scan').scrollIntoView({ behavior: 'smooth' });
 });
 
+// 命例分類（昆鴻 11/27）：自動標籤（生年天干、盤型、命宮主星、五行局、格局候選）＋自訂標籤
+const CAT_BY = ['生年天干', '盤型', '命宮主星', '五行局', '格局', '自訂標籤'];
+let catBy = '盤型', catTag = '全部';
+function renderCat() {
+  $('#catby').innerHTML = CAT_BY.map(t => `<option${t === catBy ? ' selected' : ''}>${t}</option>`).join('');
+  const tags = ['全部', ...new Set(people.map(p => p.tag))]; if (!tags.includes(catTag)) catTag = '全部';
+  $('#cattag').innerHTML = tags.map(t => `<option${t === catTag ? ' selected' : ''}>${t}</option>`).join('');
+  const groups = new Map(), put = (k, p, sub = '') => { if (!groups.has(k)) groups.set(k, []); groups.get(k).push([p, sub]); };
+  for (const p of people.filter(p => catTag === '全部' || p.tag === catTag)) {
+    let t; try { t = SC.chartTags(chartOf(p)); } catch { put('生辰有誤', p); continue; }
+    if (catBy === '格局') { t.格局.forEach(g => put(g.name, p, `${g.plus.length ? '加分：' + g.plus.join('、') : '沒有加分條件'}${g.minus.length ? '；減分：' + g.minus.join('、') : '；沒見煞忌'}`)); if (!t.格局.length) put('沒有符合骨架的格局', p); }
+    else if (catBy === '自訂標籤') { (p.tags?.length ? p.tags : ['沒有標籤']).forEach(k => put(k, p)); }
+    else put(t[catBy], p);
+  }
+  const order = { 生年天干: S => STEMS_ORDER.indexOf(S[0]), 盤型: S => B.indexOf(S.slice(3)) }[catBy];
+  const keys = [...groups.keys()].sort((a, b) => order ? order(a) - order(b) : groups.get(b).length - groups.get(a).length);
+  $('#catbody').innerHTML = people.length ? keys.map(k => `<h4>${k}（${groups.get(k).length}）</h4>${groups.get(k).map(([p, sub]) => sub
+      ? `<button data-cat="${p.id}">${p.name}</button><small>${sub}</small>` : `<button data-cat="${p.id}">${p.name}</button>`).join('')}`).join('') +
+    (catBy === '格局' ? '<p class="muted" style="font-size:12px;color:var(--muted)">只檢查骨架（佳妤說格局 EP1–8 筆記）：君臣慶會、丹墀桂墀、日麗中天、太陽會文昌於官祿、擎羊火星威權、日月並明、紫微辰戌遇破軍、梁居午位。格局要足夠條件綜合評估才成格，這裡只是候選，加分、減分列給你判斷。</p>' : '')
+    : '<p class="muted">尚無命主</p>';
+}
+const STEMS_ORDER = '甲乙丙丁戊己庚辛壬癸';
+$('#cat').addEventListener('change', e => { if (e.target.id === 'catby') catBy = e.target.value; if (e.target.id === 'cattag') catTag = e.target.value; renderCat(); });
+$('#cat').addEventListener('click', e => {
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.dataset.catclose != null) $('#cat').close();
+  if (t.dataset.cat) { load(t.dataset.cat); $('#cat').close(); }
+});
+
 // 合盤（昆鴻 11/27）：規則照 ziwei-liunian 判讀規則第七節
 let hpA = null, hpB = null, hpYear = L.lunarOf(new Date()).year;
 const HP_POS = { 夫妻: '天生的另一半樣子', 福德: '心裡的依靠', 田宅: '像是對方的家', 子女: '像照顧大孩子' };
@@ -9814,7 +9876,8 @@ function openForm(p) {
   editing = p; F.reset(); $('#ferr').textContent = '';
   if (p) {
     E.name.value = p.name; E.cal.value = p.cal; E.gender.value = p.gender; E.y.value = p.y; E.m.value = p.m; E.d.value = p.d;
-    E.leap.value = p.leap ? '1' : ''; E.tmode.value = p.tmode || 'zhi'; E.zhi.value = String(p.h); E.hm.value = `${String(p.h).padStart(2, '0')}:${String(p.min).padStart(2, '0')}`; if (![...E.tag.options].some(o => o.value === p.tag)) E.tag.add(new Option(p.tag)); E.tag.value = p.tag; // 舊資料的分類不在選單裡也保留 E.note.value = p.note || '';
+    E.leap.value = p.leap ? '1' : ''; E.tmode.value = p.tmode || 'zhi'; E.zhi.value = String(p.h); E.hm.value = `${String(p.h).padStart(2, '0')}:${String(p.min).padStart(2, '0')}`; if (![...E.tag.options].some(o => o.value === p.tag)) E.tag.add(new Option(p.tag)); E.tag.value = p.tag; // 舊資料的分類不在選單裡也保留
+    E.note.value = p.note || ''; E.tags.value = (p.tags || []).join(' ');
   }
   syncForm(); $('#dlg').showModal();
 }
@@ -9826,7 +9889,7 @@ $('#save').addEventListener('click', e => {
     if (!E.hm.value) { $('#ferr').textContent = '請輸入時間'; return; }
     [h, min] = E.hm.value.split(':').map(Number);
   }
-  const p = { id: editing?.id || String(Date.now()), name: E.name.value.trim(), cal: E.cal.value, gender: E.gender.value, y: +E.y.value, m: +E.m.value, d: +E.d.value, leap: E.cal.value === 'lunar' && E.leap.value === '1', tmode: E.tmode.value, h, min, tag: E.tag.value, note: E.note.value, ...(editing?.events ? { events: editing.events } : {}) }; // 編輯不洗掉事件紀錄
+  const p = { id: editing?.id || String(Date.now()), name: E.name.value.trim(), cal: E.cal.value, gender: E.gender.value, y: +E.y.value, m: +E.m.value, d: +E.d.value, leap: E.cal.value === 'lunar' && E.leap.value === '1', tmode: E.tmode.value, h, min, tag: E.tag.value, note: E.note.value, tags: [...new Set(E.tags.value.split(/[\s,，、]+/).filter(Boolean))], ...(editing?.events ? { events: editing.events } : {}) }; // 編輯不洗掉事件紀錄
   try { computeChart({ year: p.y, month: p.m, day: p.d, hour: p.h, minute: p.min, gender: p.gender, calendar: p.cal, isLeapMonth: p.leap }); }
   catch (err) { $('#ferr').textContent = '生辰有誤：' + err.message; return; }
   people = editing ? people.map(x => x.id === p.id ? p : x) : [...people, p];
@@ -9837,6 +9900,7 @@ $('#more').addEventListener('click', () => $('#menu').showModal());
 $('#menu').addEventListener('close', () => {
   const v = $('#menu').returnValue;
   if (v === 'hp') openHp();
+  if (v === 'cat') { renderCat(); $('#cat').showModal(); }
   if (v === 'ov') { renderOv(); $('#ov').showModal(); }
   if (v === 'edit' && cur) openForm(cur);
   if (v === 'del' && cur && confirm(`刪除「${cur.name}」？（建議先匯出備份）`)) { people = people.filter(x => x.id !== cur.id); store.set('zw-people', people); load(people[0]?.id); }
