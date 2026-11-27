@@ -8712,7 +8712,7 @@ dialog::backdrop { background: #0007; }
     <label>時間輸入<select name="tmode"><option value="zhi">選時辰</option><option value="hm">時：分</option></select></label>
     <label id="zhiL">時辰<select name="zhi"></select></label>
     <label id="hmL">時間<input name="hm" type="time"></label>
-    <label>分類<select name="tag"><option>自己</option><option>家人</option><option>客人</option><option>考題</option><option>其他</option></select></label>
+    <label>分類<select name="tag"><option>自己</option><option>家人</option><option>朋友</option><option>客人</option><option>考題</option><option>其他</option></select></label>
     <label class="full">備註<textarea name="note" rows="2"></textarea></label>
     <div class="err full" id="ferr"></div>
     <div class="full" style="display:flex;gap:8px;justify-content:flex-end">
@@ -9695,7 +9695,7 @@ function openForm(p) {
   editing = p; F.reset(); $('#ferr').textContent = '';
   if (p) {
     E.name.value = p.name; E.cal.value = p.cal; E.gender.value = p.gender; E.y.value = p.y; E.m.value = p.m; E.d.value = p.d;
-    E.leap.value = p.leap ? '1' : ''; E.tmode.value = p.tmode || 'zhi'; E.zhi.value = String(p.h); E.hm.value = `${String(p.h).padStart(2, '0')}:${String(p.min).padStart(2, '0')}`; E.tag.value = p.tag; E.note.value = p.note || '';
+    E.leap.value = p.leap ? '1' : ''; E.tmode.value = p.tmode || 'zhi'; E.zhi.value = String(p.h); E.hm.value = `${String(p.h).padStart(2, '0')}:${String(p.min).padStart(2, '0')}`; if (![...E.tag.options].some(o => o.value === p.tag)) E.tag.add(new Option(p.tag)); E.tag.value = p.tag; // 舊資料的分類不在選單裡也保留 E.note.value = p.note || '';
   }
   syncForm(); $('#dlg').showModal();
 }
