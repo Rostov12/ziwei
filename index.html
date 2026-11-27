@@ -8592,6 +8592,8 @@ button.primary { background: var(--btn); color: var(--btnink); border-color: var
 .st.main { color: var(--main); font-weight: 700; font-size: 14px; }
 .st.aux { color: var(--aux); }
 .st.sha { color: var(--sha); }
+/* 四煞（本命火鈴羊陀＋大限／流年／流月羊陀）加外框，昆鴻 11/27 */
+.st.sha .n, .st.flow.sha4 .n { outline: 1px solid currentColor; border-radius: 2px; }
 .st.misc, .st.flow { font-size: 11px; width: 13px; line-height: 12px; }
 .st.misc { color: var(--misc); }
 .st .br { font-size: 9px; color: var(--muted); }
@@ -8646,6 +8648,14 @@ dialog::backdrop { background: #0007; }
 .scan .ms .on { outline: 3px solid var(--btn); outline-offset: 1px; }
 .scan .why { margin-top: 6px; color: var(--ink); }
 .scan .muted { color: var(--muted); font-size: 12px; margin-top: 6px; }
+.fcols { display: grid; grid-template-columns: 1fr; gap: 6px; }
+@media (min-width: 640px) { .fcols { grid-template-columns: 1fr 1fr; } }
+.fh { font-weight: 700; color: var(--btn); margin: 2px 0; }
+.flist { list-style: none; margin: 0; padding: 0; }
+.flist li { padding: 4px 0; border-top: 1px dashed var(--line); }
+.flist li.hit b { color: var(--ji); }
+.flist small { color: var(--muted); }
+.flist .tag { font-size: 11px; padding: 0 4px; border-radius: 3px; background: #f2a65a; color: #3a1a00; }
 .scan .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
 .scan .tabs button { min-height: 36px; padding: 2px 10px; font-size: 13px; border: 1px solid var(--line); border-radius: 18px; background: var(--panel2); color: var(--ink); }
 .scan .tabs button.on { background: var(--btn); color: var(--btnink); border-color: var(--btn); }
@@ -8672,6 +8682,7 @@ dialog::backdrop { background: #0007; }
     <span>立太極：</span><span id="tjbtns"></span>
   </div>
   <p class="note" id="note"></p>
+  <div class="scan" id="focus"></div>
   <div class="scan" id="scan"></div>
   <div class="detail" id="detail">點任一宮：看宮干飛化、誰飛進來、以此宮立太極。</div>
 </div>
@@ -9109,7 +9120,7 @@ const THEMES = {
       if (ctx.dx) zt.push(axis(at(ctx.dx.branch, '子女')));
       // 生產出血：官方（2026 Q30）看父疾線紅鸞＋陀羅，不要求疊子田（昆鴻 11/27 同意另開）
       const birth = c.鸞喜 && c.陀 >= 1;
-      if (!zt.includes(axis(fj[0])) && !zt.includes(axis(base))) return birth ? { c, blood: true, birth, note: '生產／開刀出血' } : null;
+      if (!zt.includes(axis(fj[0])) && !zt.includes(axis(base))) return birth ? { c, blood: true, birth, note: '開刀出血（女性含生產）' } : null;
       const car = hasStar(ctx, fj, ['破軍', '巨門', '天相', '天機']);
       return { c, blood: c.鸞喜, birth, note: (c.鸞喜 ? '血光' : '受傷') + (car ? '・留意車禍' : '') };
     },
@@ -9197,7 +9208,22 @@ function scanYear(chart, year, opts) {
   return Object.fromEntries(THEME_NAMES.map(t => [t, Array.from({ length: 12 }, (_, i) => scanMonth(context(chart, year, i + 1), t, opts))]));
 }
 
-return { context, THEME_NAMES, scanMonth, scanYear };
+// 大限／流年層級的「要注意什麼」（昆鴻 11/27：先做這大限、這一年，應期晚點）。
+// 回傳 {主題: {daxian, year, gate}}：daxian＝大限那條線有跡象（只算本命＋大限）、year＝流年那條線有跡象（算到流年）、gate＝大限／流年／小限命宮走進本命那條線。
+function layerSigns(chart, year, opts = {}) {
+  const { natal = false } = opts;
+  const ctx = context(chart, year, 1); // 月份層級不用，任取一月
+  return Object.fromEntries(THEME_NAMES.map(t => {
+    const T = THEMES[t];
+    const ln = line(chart.mingBranch, { 父疾: '疾厄', 兄弟: '兄弟', 夫妻: '夫妻', 財帛: '財帛' }[T.gate]);
+    const gate = [ctx.dx?.branch, ctx.ys.branch, ctx.xx].some(b => b && ln.includes(b));
+    // dy＝流年的煞忌打進大限那條線（筆記「運限父疾線」含大限線；命例06 2022 躁症＝流年羊忌落大限疾厄）
+    return [t, { gate, year: T.sign(ctx, ctx.ys.branch, '年', natal), daxian: ctx.dx ? T.sign(ctx, ctx.dx.branch, '大', natal) : null,
+      dy: ctx.dx ? T.sign(ctx, ctx.dx.branch, '年', natal) : null }];
+  }));
+}
+
+return { context, THEME_NAMES, scanMonth, scanYear, layerSigns };
 })();
 
 const $ = s => document.querySelector(s);
@@ -9261,7 +9287,7 @@ function activeLayers() {
 
 function render() {
   const g = $('#grid');
-  if (!chart) { g.innerHTML = ''; $('#scan').innerHTML = ''; $('#bar').innerHTML = ''; $('#arrows').innerHTML = ''; $('#tjbtns').innerHTML = ''; return; }
+  if (!chart) { g.innerHTML = ''; $('#scan').innerHTML = ''; $('#focus').innerHTML = ''; $('#bar').innerHTML = ''; $('#arrows').innerHTML = ''; $('#tjbtns').innerHTML = ''; return; }
   const lys = activeLayers();
   const dxl = L.daxianList(chart), rng = Object.fromEntries(dxl.map(d => [d.branch, `${d.from}–${d.to}`]));
   const yg = sel.year ? L.yearGZ(sel.year) : null;
@@ -9279,7 +9305,7 @@ function render() {
       if (s.sihua) hs.push(['本', s.sihua]);
       for (const l of lys) if (l.k !== '日' && l.hua[s.name]) hs.push([l.k, l.hua[s.name]]); // 流日四化不標（昆鴻 11/27）
       return `<span class="st ${s.type}"><span class="n">${s.name}</span>${s.brightness ? `<span class="br">${s.brightness}</span>` : ''}${hs.map(([k, h]) => `<span class="hua k${k}" title="${k}化${h}">${h}</span>`).join('')}</span>`;
-    }).join('') + flow.filter(([, b]) => b === p.branch).map(([n]) => `<span class="st flow L${n[0]}"><span class="n">${n}</span></span>`).join('');
+    }).join('') + flow.filter(([, b]) => b === p.branch).map(([n]) => `<span class="st flow L${n[0]}${/[羊陀]$/.test(n) ? ' sha4' : ''}"><span class="n">${n}</span></span>`).join('');
     const marks = [p.isShen && '身宮', xiao === p.branch && '小限', monthAt[p.branch]].filter(Boolean).map(t => `<span class="chip">${t}</span>`).join('');
     html += `<div class="cell${sel.pick === p.branch ? ' pick' : ''}${sel.taiji === p.branch ? ' tj' : ''}" style="grid-row:${r};grid-column:${c}" data-b="${p.branch}">
       <div class="stars">${stars}</div>
@@ -9300,7 +9326,7 @@ function render() {
     <div class="legend">${['本', '大', '年', '月'].map(k => `<span class="hua k${k}" style="width:auto;padding:0 3px">${k === '本' ? '本命' : k === '大' ? '大限' : '流' + k}</span>`).join('')}</div>
   </div>`;
   g.innerHTML = html;
-  renderBar(dxl); renderTj(lys); renderDetail(lys); renderScan();
+  renderBar(dxl); renderTj(lys); renderDetail(lys); renderFocus(); renderScan();
   requestAnimationFrame(drawArrows);
 }
 
@@ -9334,6 +9360,44 @@ function renderTj(lys) {
     + (sel.taiji ? ' <button data-tj="">取消</button>' : '');
 }
 // 第二期應期掃描：回測過的主題才開（昆鴻 11/27：感情婚姻、血光意外）；B 版＝本命煞忌不算。
+// 「這個大限、這一年要注意什麼」（昆鴻 11/27：先做這個，應期晚點）。B 版：本命煞忌只當背景，不算跡象。
+// 可信度＝大賽＋家人回測（流年層級）：感情有判斷力；血光普通；財運、小人標得太多；健康幾乎抓不到。
+const FOCUS = {
+  感情婚姻: { line: '夫官線', what: '感情變動、分手、爭吵', trust: '回測較準' },
+  血光意外: { line: '父疾線', what: '受傷、血光、開刀、生產', trust: '回測普通' },
+  財運: { line: '財福／子田線', what: '破財、投資失利', trust: '標得偏多' },
+  小人是非: { line: '兄僕線', what: '小人、口舌、朋友糾紛', trust: '標得偏多' },
+  身體健康: { line: '父疾線', what: '生病、就醫', trust: '回測抓不太到' },
+};
+const MK = { 羊: '羊', 陀: '陀', 火鈴: '火鈴', 忌: '忌', 鸞喜: '鸞喜' };
+const marksTxt = sg => sg ? [...new Set(sg.c.list.filter(x => MK[x.k]).map(x => (x.lay === '本' ? '本' : x.lay) + MK[x.k]))].join('、') : '';
+function renderFocus() {
+  const el = $('#focus');
+  const dx = sel.dx !== 'tong' && sel.dx != null ? L.daxianList(chart)[sel.dx] : null;
+  const y = sel.year || (dx ? L.yearsOfDaxian(chart, dx)[0] : null);
+  if (!y || !dx) { el.innerHTML = '<h3>這個大限、這一年要注意</h3><div class="muted">選一個大限和流年就會整理。</div>'; return; }
+  const S = SC.layerSigns(chart, y, SCAN_OPTS);
+  const row = (t, sg, gate, extra) => {
+    const F = FOCUS[t], on = !!sg && (gate || sg.birth);
+    return `<li class="${on ? 'hit' : ''}"><b>${t}</b>${on ? `　<span class="tag">注意</span>　${F.what}${sg.note ? `（${sg.note}）` : ''}<br><small>${extra}${F.line}：${marksTxt(sg)}</small>`
+      : sg && !gate ? `　<small>線上有煞忌，但運限命宮沒走進本命${F.line}（沒引動）</small>` : '　<small>—</small>'}</li>`;
+  };
+  const needGate = t => t === '身體健康' || t === '血光意外';
+  const nn = L.namesFrom(chart.mingBranch), fjNatal = Object.keys(nn).filter(b => nn[b] === '疾厄' || nn[b] === '父母');
+  const dxList = Object.keys(FOCUS).map(t => {
+    const x = S[t], g = !needGate(t) || fjNatal.includes(dx.branch); // 大限命宮走進本命父疾線才算引動
+    return row(t, x.daxian, g, '大限');
+  }).join('');
+  const yList = Object.keys(FOCUS).map(t => {
+    const x = S[t], sg = x.year || x.dy, which = x.year ? '流年' : '流年煞忌打進大限';
+    return row(t, sg, !needGate(t) || x.gate, which);
+  }).join('');
+  const g = L.yearGZ(y);
+  el.innerHTML = `<h3>這個大限、這一年要注意</h3>
+    <div class="fcols"><div><div class="fh">大限 ${palStem(dx.branch)}${dx.branch}（${dx.from}–${dx.to} 歲）</div><ul class="flist">${dxList}</ul></div>
+    <div><div class="fh">流年 ${y} ${g.stem}${g.branch}</div><ul class="flist">${yList}</ul></div></div>
+    <div class="muted">看法：那條線上有兩顆以上煞忌（各主題細則同下方應期掃描），身體健康、血光意外要運限命宮走進本命父疾線才算。可信度：${Object.entries(FOCUS).map(([t, F]) => `${t}${F.trust}`).join('、')}。本命煞忌只當背景，不單獨算。</div>`;
+}
 const SCAN_OPTS = { natal: false };
 const SCAN = {
   感情婚姻: { line: '夫官線', rule: '夫官線兩顆以上煞忌（兩顆陀羅不算）；四馬地一煞即算；雙祿交持不標。', test: '回測 40 題中 28 題有標到，隨便一年約四分之一會被標到。' },
