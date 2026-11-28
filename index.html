@@ -9393,9 +9393,12 @@ function yearGood(chart, year, opts = {}) {
   const YL = ['大', '年'], on = (ln, ks) => ctx.marks.filter(x => ln.includes(x.b) && ks.includes(x.k) && YL.includes(x.lay));
   const zt = line(ys.branch, '子女'), fj = line(ys.branch, '疾厄');
   const age = year - L.birthSolar(chart).getFullYear() + 1;
-  if (age <= 50 && ((on(zt, ['鸞喜']).length && on(zt, ['祿']).length) || (on(zt, ['祿']).length && on(fj, ['鸞喜']).length))) {
+  // 11/28 收緊：流年鸞喜＋流年祿都在子田才算可靠；只靠大限祿或父疾鸞喜（約多一倍年份）降為「較常見」（老婆 2021 生產走這條，故不刪）
+  const strong = on(zt, ['鸞喜']).length && zt.some(b => ctx.marks.some(x => x.b === b && x.k === '祿' && x.lay === '年'));
+  const weak = on(zt, ['祿']).length && (on(zt, ['鸞喜']).length || on(fj, ['鸞喜']).length);
+  if (age <= 50 && (strong || weak)) {
     const sha = on([yAt('子女'), yAt('田宅')], ['羊', '陀', '火鈴']).length;
-    good.push(['子女', `有懷孕、添丁的跡象${sha ? '（子田有煞，懷孕期間多留意、好好安胎）' : ''}`, '添丁', 1]);
+    good.push(['子女', `有懷孕生子的跡象${sha ? '（子田有煞，懷孕期間多留意、好好安胎）' : ''}`, '懷孕生子', strong ? 1 : 2]);
   }
   if (on(zt, ['羊', '陀', '火鈴', '忌']).length && (on(zt, ['祿']).length || zt.includes(yh.權)))
     good.push(['家', `有買房（貸款）的跡象${on(zt, ['陀']).length ? '；有陀羅，選房容易選錯，多比較' : ''}`, '買房', 2]);
