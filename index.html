@@ -8673,6 +8673,7 @@ dialog::backdrop { background: #0007; }
 .flist li { padding: 4px 0; border-top: 1px dashed var(--line); }
 .flist li.hit b { color: var(--ji); }
 .flist small { color: var(--muted); }
+.key { font-size: 13px; line-height: 1.7; background: var(--bg); border-radius: 6px; padding: 6px 8px; margin: 4px 0 8px; }
 .flist .say { font-size: 13px; line-height: 1.6; margin-top: 2px; }
 .flist .tag { font-size: 11px; padding: 0 4px; border-radius: 3px; background: #f2a65a; color: #3a1a00; }
 .scan .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
@@ -8722,6 +8723,7 @@ dialog::backdrop { background: #0007; }
     <label id="zhiL">時辰<select name="zhi"></select></label>
     <label id="hmL">時間<input name="hm" type="time"></label>
     <label>分類<select name="tag"><option>自己</option><option>家人</option><option>朋友</option><option>客人</option><option>考題</option><option>其他</option></select></label>
+    <label>婚姻<select name="marital"><option value="">不填</option><option>未婚</option><option>已婚</option><option>離婚</option></select></label>
     <label class="full">自訂標籤<input name="tags" placeholder="用空白或逗號分隔，例如：離婚 開刀 創業"></label>
     <label class="full">備註<textarea name="note" rows="2"></textarea></label>
     <div class="err full" id="ferr"></div>
@@ -9346,7 +9348,43 @@ function chartTags(c) {
   return { 生年天干: stem + '年', 盤型: '紫微在' + sb('紫微'), 命宮主星: mains.length ? mains.join('') : '命無主星', 五行局: c.bureau.name, 格局: G };
 }
 
-return { context, THEME_NAMES, scanMonth, scanYear, shiftCtx, layerSigns, chartTags };
+// 好的方面＋今年重點（昆鴻 11/28；規則出自大耕筆記「夫官線」：哪一年有好對象、結婚、升官、跳槽、創業）
+const TOPIC = { 命宮: '自己的狀態與想法', 兄弟: '兄弟姊妹、合夥（也代表母親）', 夫妻: '感情與另一半', 子女: '小孩、桃花、外出', 財帛: '賺錢與花錢', 疾厄: '身體',
+  遷移: '外出、在外的表現', 交友: '朋友同事', 官祿: '工作', 田宅: '家與房子', 福德: '心情、精神', 父母: '長輩、上司、文書' };
+function yearGood(chart, year, opts = {}) {
+  const ctx = shiftCtx(context(chart, year, 1), opts.shift || 0), ys = ctx.ys;
+  const nat = L.namesFrom(ctx.chart.mingBranch), yn = L.namesFrom(ys.branch), yAt = n => at(ys.branch, n);
+  const fly = stem => Object.fromEntries(['祿', '權', '科', '忌'].map(h => [h, L.starBranch(chart, SIHUA_TABLE[stem][h])]));
+  const yh = fly(ys.stem), stemOf = b => chart.palaces[bi(b)].stem, inY = (b, ns) => ns.includes(yn[b]);
+  const good = [];
+  // 好對象：流年官祿宮干飛祿或忌入流年命遷子福
+  const gl = fly(stemOf(yAt('官祿')));
+  if (inY(gl.祿, ['命宮', '遷移', '子女', '福德']) || inY(gl.忌, ['命宮', '遷移', '子女', '福德'])) good.push(['感情', '有遇到好對象的機會']);
+  // 結婚：大限有跡象（大夫妻有大限四化／大限命干化忌入大夫或本夫／大限命宮疊本命夫子田）＋流年命宮或夫官線見鸞喜
+  if (ctx.dx) {
+    const dh = fly(ctx.ds), dfq = at(ctx.dx.branch, '夫妻');
+    const dOk = Object.values(dh).includes(dfq) || [dfq, at(ctx.chart.mingBranch, '夫妻')].includes(dh.忌) || ['夫妻', '子女', '田宅'].includes(nat[ctx.dx.branch]);
+    const ln = [ys.branch, ...line(ys.branch, '夫妻')];
+    const yOk = ctx.marks.some(x => x.k === '鸞喜' && ['本', '年'].includes(x.lay) && ln.includes(x.b));
+    if (dOk && yOk) good.push(['感情', '大限、流年都有結婚跡象']);
+  }
+  // 事業：化權入流年命遷官＝升遷、主導權；化科入流年命官＝頭銜、考試；化祿入流年官＝工作機會；化祿入流年命財子田＝收入增加；權科入流年財＝適合自己掌控錢（創業、接案）
+  if (inY(yh.權, ['命宮', '遷移', '官祿'])) good.push(['工作', '有升遷、拿到主導權的機會']);
+  if (inY(yh.科, ['命宮', '官祿'])) good.push(['工作', '有頭銜、考試、比賽的好消息']);
+  if (inY(yh.祿, ['官祿'])) good.push(['工作', '工作機會變多']);
+  if (inY(yh.祿, ['命宮', '財帛', '子女', '田宅'])) good.push(['財運', '收入有增加的機會']);
+  if (inY(yh.權, ['財帛']) || inY(yh.科, ['財帛'])) good.push(['財運', '適合自己掌控金錢的事（創業、接案）']);
+  return { ji: nat[yh.忌], lu: nat[yh.祿], jiTopic: TOPIC[nat[yh.忌]], luTopic: TOPIC[nat[yh.祿]], good };
+}
+// 感情較順的月份（推論，筆記沒有直接講）：流月夫官線見年或月層的祿或鸞喜，且感情掃描沒標
+function goodMonths(chart, year, opts = {}) {
+  return Array.from({ length: 12 }, (_, i) => i + 1).filter(m => {
+    const ctx = shiftCtx(context(chart, year, m), opts.shift || 0), ln = line(ctx.mb, '夫妻');
+    return ctx.marks.some(x => ['祿', '鸞喜'].includes(x.k) && ['年', '月'].includes(x.lay) && ln.includes(x.b)) && scanMonth(ctx, '感情婚姻', opts).level === 0;
+  });
+}
+
+return { context, THEME_NAMES, scanMonth, scanYear, shiftCtx, layerSigns, chartTags, yearGood, goodMonths };
 })();
 
 const $ = s => document.querySelector(s);
@@ -9489,14 +9527,14 @@ function renderTj(lys) {
 // 「這個大限、這一年要注意什麼」（昆鴻 11/27：先做這個，應期晚點）。B 版：本命煞忌只當背景，不算跡象。
 // 可信度＝大賽＋家人回測（流年層級）：感情有判斷力；血光普通；財運、小人標得太多；健康幾乎抓不到。
 const FOCUS = {
-  感情婚姻: { line: '夫官線', what: '感情變動、分手、爭吵', trust: '整年看普通，月份掃描較準' },
+  感情婚姻: { line: '夫官線', what: '感情變動、分手、爭吵，或離職、換職務的壓力', trust: '整年看普通，月份掃描較準' },
   血光意外: { line: '父疾線', what: '受傷、血光、開刀、生產', trust: '回測普通' },
   財運: { line: '財福／子田線', what: '破財、投資失利', trust: '已收緊，約四成年份仍會標' },
   小人是非: { line: '兄僕線', what: '小人、口舌、朋友糾紛', trust: '已收緊，約四成年份仍會標' },
   身體健康: { line: '父疾線', what: '生病、就醫', trust: '回測偏弱（約四分之一年份會標）' },
 };
 // 白話（昆鴻 11/27）：為什麼標、哪幾個月、可以怎麼做。用祈願口吻，不嚇人、不保證。
-const HUMAN = { 感情婚姻: '感情', 血光意外: '身體安全', 財運: '錢財', 小人是非: '人際', 身體健康: '身體' };
+const HUMAN = { 感情婚姻: '感情與工作', 血光意外: '身體安全', 財運: '錢財', 小人是非: '人際', 身體健康: '身體' };
 const PLAIN = { 羊: '擎羊（衝動、硬碰硬）', 陀: '陀羅（拖延、悶著）', 火鈴: '火星鈴星（急躁、突發）', 忌: '化忌（卡關、放不下）', 鸞喜: '紅鸞天喜（喜事，也可能見血）' };
 const ADV = {
   感情婚姻: '有話早點說開；分手、結婚、簽字這類大決定先緩一緩，多聽一個人的意見。',
@@ -9513,10 +9551,12 @@ const ADV_K = {
   小人是非: { 羊: '有衝突別當面硬槓，留紀錄、走正式管道', 陀: '拖著沒處理的人情帳、糾紛早點收尾', 火鈴: '群組、社群發言前先冷靜，別說氣話', 忌: '不替人背書、不介入別人的是非', 鸞喜: '應酬多，注意交淺言深' },
   身體健康: { 羊: '留意發炎、外傷，運動量力而為', 陀: '慢性病、筋骨痠痛要規律保養，別拖', 火鈴: '少熬夜、少上火，留意發燒急症', 忌: '放在心上的老毛病，該回診就回診', 鸞喜: '血液、婦科相關的檢查照時間做' },
 };
+// 沒登記已婚就不說「離婚」（昆鴻 11/28：模擬諮詢 4 位出現、3 位未婚）
+const noteOf = n => !n || /四馬地|對拱/.test(n) ? '' : cur?.marital !== '已婚' && !sel.taiji ? n.replace('離婚等級（官非跡象）', '感情重大變動，可能牽涉合約或糾紛') : n;
 function sayTxt(t, sg, lay, months) {
   const F = FOCUS[t], kk = [...new Set(sg.c.list.map(x => x.k).filter(k => PLAIN[k]))], ks = kk.map(k => PLAIN[k]).join('、');
   const tips = kk.map(k => ADV_K[t][k]).filter(Boolean);
-  return `${{ 大限: '這十年', 流月: '這個月' }[lay] || '這一年'}管${HUMAN[t]}的位置碰到${ks}，容易有${F.what}${sg.note && !/四馬地|對拱/.test(sg.note) ? `（${sg.note}）` : ''}。${months?.length ? `比較要留意農曆${months.map(m => MONTHS[m - 1]).join('、')}月。` : ''}建議：${tips.length ? tips.join('；') + '。' : ADV[t]}`;
+  return `${{ 大限: '這十年', 流月: '這個月' }[lay] || '這一年'}管${HUMAN[t]}的位置碰到${ks}，容易有${F.what}${noteOf(sg.note) ? `（${noteOf(sg.note)}）` : ''}。${months?.length ? `比較要留意農曆${months.map(m => MONTHS[m - 1]).join('、')}月。` : ''}建議：${tips.length ? tips.join('；') + '。' : ADV[t]}`;
 }
 // 流年那一層：感情、血光才有月份掃描（回測過），列中、重的月
 const hotMonths = (t, y, shift) => SCAN[t] ? Array.from({ length: 12 }, (_, i) => i + 1).filter(m => SC.scanMonth(SC.shiftCtx(SC.context(chart, y, m), shift), t, SCAN_OPTS).level >= 2) : [];
@@ -9553,6 +9593,7 @@ function renderFocus() {
   const row = (t, sg, gate, extra) => {
     const F = FOCUS[t], on = !!sg && (gate || sg.birth), lay = extra === '大限' ? '大限' : '流年';
     return `<li class="${on ? 'hit' : ''}"><b>${t}</b>${on ? `　<span class="tag">注意</span><div class="say">${sayTxt(t, sg, lay, lay === '流年' ? hotMonths(t, y, shift) : null)}</div><small>${extra}${F.line}：${marksTxt(sg)}</small>`
+      : lay === '流年' && hotMonths(t, y, shift).length ? `　<small>整年沒標，但農曆${hotMonths(t, y, shift).map(m => MONTHS[m - 1]).join('、')}月有中以上（見下方應期掃描）</small>`
       : sg && !gate ? `　<small>線上有煞忌，但運限命宮沒走進本命${F.line}（沒引動）</small>` : '　<small>—</small>'}</li>`;
   };
   const dxList = Object.keys(FOCUS).map(t => {
@@ -9563,9 +9604,14 @@ function renderFocus() {
     const x = S[t], sg = x.year || x.dy, which = x.year ? '流年' : '流年煞忌打進大限';
     return row(t, sg, !needGate(t) || x.gate, which);
   }).join('');
-  const g = L.yearGZ(y);
-  focusText = focusTxt(S, dx, dxb, y, shift);
+  const g = L.yearGZ(y), YG = SC.yearGood(chart, y, { shift }), gm = SC.goodMonths(chart, y, { ...SCAN_OPTS, shift });
+  const age = y - L.birthSolar(chart).getFullYear() + 1, dk = a => L.daxianAt(chart, a)?.k;
+  const chg = dk(age) !== dk(age - 1) ? '今年進新大限，是十年一次的轉折。' : dk(age + 1) !== dk(age) ? '明年換大限，今年適合收尾、準備下一階段。' : '';
+  const keyTxt = `今年化忌進本命${YG.ji}：${YG.jiTopic}最容易卡住、放不下；化祿進本命${YG.lu}：${YG.luTopic}有多出來的機會，可以拿來補。${chg}`;
+  const goodTxt = [...YG.good.map(([k, v]) => `${k}：${v}`), gm.length ? `感情較順的月份（推論）：農曆${gm.map(m => MONTHS[m - 1]).join('、')}月` : ''].filter(Boolean);
+  focusText = focusTxt(S, dx, dxb, y, shift) + `\n今年重點：${keyTxt}\n好的方面：${goodTxt.join('；') || '沒有特別標出'}`;
   el.innerHTML = `<h3><button class="fcopy" data-fcopy>複製文字</button>這個大限、這一年要注意${shift ? `<small>　以${sel.tjLabel}立太極（看那個人）</small>` : ''}</h3>
+    <div class="key"><b>今年重點</b>　${keyTxt}${goodTxt.length ? `<br><b>好的方面</b>　${goodTxt.join('；')}` : ''}</div>
     <div class="fcols"><div><div class="fh">大限 ${palStem(dxb)}${dxb}（命主 ${dx.from}–${dx.to} 歲）</div><ul class="flist">${dxList}</ul></div>
     <div><div class="fh">流年 ${y} ${g.stem}${g.branch}</div><ul class="flist">${yList}</ul></div></div>
     <div class="muted">看法：那條線上有兩顆以上煞忌（各主題細則同下方應期掃描），身體健康、血光意外要運限命宮走進本命父疾線才算。可信度：${Object.entries(FOCUS).map(([t, F]) => `${t}${F.trust}`).join('、')}。本命煞忌只當背景（身體健康例外：本命的也算進雙羊、雙陀）。</div>`;
@@ -9949,7 +9995,7 @@ function openForm(p) {
   if (p) {
     E.name.value = p.name; E.cal.value = p.cal; E.gender.value = p.gender; E.y.value = p.y; E.m.value = p.m; E.d.value = p.d;
     E.leap.value = p.leap ? '1' : ''; E.tmode.value = p.tmode || 'zhi'; E.zhi.value = String(p.h); E.hm.value = `${String(p.h).padStart(2, '0')}:${String(p.min).padStart(2, '0')}`; if (![...E.tag.options].some(o => o.value === p.tag)) E.tag.add(new Option(p.tag)); E.tag.value = p.tag; // 舊資料的分類不在選單裡也保留
-    E.note.value = p.note || ''; E.tags.value = (p.tags || []).join(' ');
+    E.note.value = p.note || ''; E.tags.value = (p.tags || []).join(' '); E.marital.value = p.marital || '';
   }
   syncForm(); $('#dlg').showModal();
 }
@@ -9961,7 +10007,7 @@ $('#save').addEventListener('click', e => {
     if (!E.hm.value) { $('#ferr').textContent = '請輸入時間'; return; }
     [h, min] = E.hm.value.split(':').map(Number);
   }
-  const p = { id: editing?.id || String(Date.now()), name: E.name.value.trim(), cal: E.cal.value, gender: E.gender.value, y: +E.y.value, m: +E.m.value, d: +E.d.value, leap: E.cal.value === 'lunar' && E.leap.value === '1', tmode: E.tmode.value, h, min, tag: E.tag.value, note: E.note.value, tags: [...new Set(E.tags.value.split(/[\s,，、]+/).filter(Boolean))], ...(editing?.events ? { events: editing.events } : {}) }; // 編輯不洗掉事件紀錄
+  const p = { id: editing?.id || String(Date.now()), name: E.name.value.trim(), cal: E.cal.value, gender: E.gender.value, y: +E.y.value, m: +E.m.value, d: +E.d.value, leap: E.cal.value === 'lunar' && E.leap.value === '1', tmode: E.tmode.value, h, min, tag: E.tag.value, marital: E.marital.value, note: E.note.value, tags: [...new Set(E.tags.value.split(/[\s,，、]+/).filter(Boolean))], ...(editing?.events ? { events: editing.events } : {}) }; // 編輯不洗掉事件紀錄
   try { computeChart({ year: p.y, month: p.m, day: p.d, hour: p.h, minute: p.min, gender: p.gender, calendar: p.cal, isLeapMonth: p.leap }); }
   catch (err) { $('#ferr').textContent = '生辰有誤：' + err.message; return; }
   people = editing ? people.map(x => x.id === p.id ? p : x) : [...people, p];
