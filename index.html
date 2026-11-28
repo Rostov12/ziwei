@@ -8647,7 +8647,7 @@ dialog::backdrop { background: #0007; }
 #ov th, #ov td { text-align: left; padding: 5px 4px; border-top: 1px solid var(--line); vertical-align: top; }
 #ov td small, #ov th small { display: block; font-weight: 400; color: var(--muted); font-size: 11px; }
 #ov .t { display: inline-block; margin: 1px 2px 1px 0; font-size: 11px; padding: 0 4px; border-radius: 3px; background: #f2a65a; color: #3a1a00; }
-#ov .none { color: var(--muted); }
+#ov .none { color: var(--muted); } #ov .t.chg { background: #c9d9f2; color: #102a4c; }
 .evform { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; } .evform input[type=text] { flex: 1 1 140px; min-width: 0; }
 .evok { color: var(--ji); font-weight: 700; } .evno { color: var(--muted); }
 .fcopy { float: right; font-size: 12px; }
@@ -8749,7 +8749,7 @@ dialog::backdrop { background: #0007; }
   <div class="ovhead"><b>家人總覽</b>
     <button data-ovy="-1" aria-label="前一年">◀</button><b id="ovy"></b><button data-ovy="1" aria-label="後一年">▶</button>
     <select id="ovrel" aria-label="看誰"></select><select id="ovtag" aria-label="分類"></select>
-    <span class="sp"></span><button data-ovclose>關閉</button></div>
+    <span class="sp"></span><button data-ovpng>存成圖片</button><button data-ovclose>關閉</button></div>
   <div id="ovbody"></div>
 </dialog>
 <dialog id="cat">
@@ -9516,7 +9516,7 @@ const ADV_K = {
 function sayTxt(t, sg, lay, months) {
   const F = FOCUS[t], kk = [...new Set(sg.c.list.map(x => x.k).filter(k => PLAIN[k]))], ks = kk.map(k => PLAIN[k]).join('、');
   const tips = kk.map(k => ADV_K[t][k]).filter(Boolean);
-  return `${lay === '大限' ? '這十年' : '這一年'}管${HUMAN[t]}的位置碰到${ks}，容易有${F.what}${sg.note && !/四馬地|對拱/.test(sg.note) ? `（${sg.note}）` : ''}。${months?.length ? `比較要留意農曆${months.map(m => MONTHS[m - 1]).join('、')}月。` : ''}建議：${tips.length ? tips.join('；') + '。' : ADV[t]}`;
+  return `${{ 大限: '這十年', 流月: '這個月' }[lay] || '這一年'}管${HUMAN[t]}的位置碰到${ks}，容易有${F.what}${sg.note && !/四馬地|對拱/.test(sg.note) ? `（${sg.note}）` : ''}。${months?.length ? `比較要留意農曆${months.map(m => MONTHS[m - 1]).join('、')}月。` : ''}建議：${tips.length ? tips.join('；') + '。' : ADV[t]}`;
 }
 // 流年那一層：感情、血光才有月份掃描（回測過），列中、重的月
 const hotMonths = (t, y, shift) => SCAN[t] ? Array.from({ length: 12 }, (_, i) => i + 1).filter(m => SC.scanMonth(SC.shiftCtx(SC.context(chart, y, m), shift), t, SCAN_OPTS).level >= 2) : [];
@@ -9599,7 +9599,8 @@ function renderScan() {
   if (r?.level) {
     const parts = [r.year && `流年${T.line}：${HIT(r.year.c)}`, r.month && `流月${T.line}：${HIT(r.month.c)}`, r.daxian && `大限${T.line}：${HIT(r.daxian.c)}`,
       r.year && (r.into ? `流月疊進流年${T.line}` : `流月沒疊進流年${T.line}`)].filter(Boolean);
-    h += `<div class="why"><b>${sel.year}　${MONTHS[sel.month - 1]}月　${r.label}</b>${r.note ? '　' + r.note : ''}<br>${parts.join('；')}</div>`;
+    const sg = { c: { list: [...(r.month?.c.list || []), ...(r.year?.c.list || []), ...(r.daxian?.c.list || [])] }, note: r.note };
+    h += `<div class="why"><b>${sel.year}　${MONTHS[sel.month - 1]}月　${r.label}</b><div class="say">${sayTxt(scanTheme, sg, '流月')}</div><small>${parts.join('；')}</small></div>`;
   }
   h += `<div class="muted">規則：${T.rule}輕＝只有流月；中＝流年有且流月疊入；重＝再加大限。${T.test}小人是非、財運、身體健康回測未過，暫不顯示。</div>`;
   el.innerHTML = h;
@@ -9630,15 +9631,26 @@ $('#bk').addEventListener('click', e => { if (e.target.closest('[data-bk]')) { $
 async function savePng() {
   if (!chart) return;
   try {
-    if (!window.html2canvas) await new Promise((ok, bad) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'; sc.onload = ok; sc.onerror = bad; document.head.appendChild(sc); });
+    await loadH2C();
     const bg = getComputedStyle(document.body).backgroundColor, opt = { backgroundColor: bg, scale: 2 };
     const a = await html2canvas($('.boardwrap'), opt), b = await html2canvas($('#focus'), opt);
     const cv = document.createElement('canvas'); cv.width = Math.max(a.width, b.width); cv.height = a.height + b.height + 16;
     const g = cv.getContext('2d'); g.fillStyle = bg; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(a, 0, 0); g.drawImage(b, 0, a.height + 16);
     const blob = await new Promise(r => cv.toBlob(r, 'image/png')), name = `${cur.name}_${sel.year || ''}${sel.taiji ? '_' + sel.tjLabel : ''}.png`.replace(/[\\/:*?"<>|（）]/g, '');
-    const file = new File([blob], name, { type: 'image/png' });
-    if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file] });
-    else { const l = document.createElement('a'); l.href = URL.createObjectURL(blob); l.download = name; l.click(); }
+    await shareBlob(blob, name);
+  } catch (e) { if (e?.name !== 'AbortError') alert('存圖失敗（第一次使用需要網路）'); }
+}
+const loadH2C = () => window.html2canvas ? Promise.resolve() : new Promise((ok, bad) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'; sc.onload = ok; sc.onerror = bad; document.head.appendChild(sc); });
+async function shareBlob(blob, name) {
+  const file = new File([blob], name, { type: 'image/png' });
+  if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file] });
+  else { const l = document.createElement('a'); l.href = URL.createObjectURL(blob); l.download = name; l.click(); }
+}
+async function saveOvPng() {
+  try {
+    await loadH2C();
+    const cv = await html2canvas($('#ov'), { backgroundColor: getComputedStyle($('#ov')).backgroundColor, scale: 2, ignoreElements: e => e.matches?.('[data-ovpng],[data-ovclose],[data-ovy]') });
+    await shareBlob(await new Promise(r => cv.toBlob(r, 'image/png')), `家人總覽_${ovYear}_${ovRel}${ovTag === '全部' ? '' : '_' + ovTag}.png`);
   } catch (e) { if (e?.name !== 'AbortError') alert('存圖失敗（第一次使用需要網路）'); }
 }
 
@@ -9695,7 +9707,10 @@ function ovPerson(p) {
   // 近三個月：今天的農曆月起三個月，只看月份層級回測過的感情、血光，只列中、重
   const near = NEXT3.flatMap(([y, m]) => Object.keys(SCAN).map(t => [y, m, t, SC.scanMonth(SC.shiftCtx(SC.context(c, y, m), shift), t, SCAN_OPTS)]))
     .filter(([, , , r]) => r.level >= 2).map(([y, m, t, r]) => `${MONTHS[m - 1]}月${SHORT_T[t]}${r.label}`);
-  return { c, pn, pal, shift, d, dx: hit(dxSg), yr: hit(yrSg), near };
+  // 換大限提醒（昆鴻 11/28）：今年或明年進新大限（看的是命主本人的大限，立太極也一樣）
+  const k = y => L.daxianAt(c, y - L.birthSolar(c).getFullYear() + 1)?.k, nd = y => L.daxianAt(c, y - L.birthSolar(c).getFullYear() + 1);
+  const chg = d && k(ovYear) !== k(ovYear - 1) ? `今年進新大限（${d.from}–${d.to} 歲）` : nd(ovYear + 1) && k(ovYear + 1) !== k(ovYear) ? `明年換大限（${nd(ovYear + 1).from}–${nd(ovYear + 1).to} 歲）` : '';
+  return { c, pn, pal, shift, d, dx: hit(dxSg), yr: hit(yrSg), near, chg };
 }
 function renderOv() {
   $('#ovy').textContent = `${ovYear} ${L.yearGZ(ovYear).stem}${L.yearGZ(ovYear).branch}`;
@@ -9706,7 +9721,7 @@ function renderOv() {
   const T = a => a == null ? '<span class="none">還沒起大限</span>' : a.length ? a.map(t => `<span class="t">${SHORT_T[t]}</span>`).join('') : '<span class="none">—</span>';
   const rows = people.filter(p => ovTag === '全部' || p.tag === ovTag).map(p => {
     let r; try { r = ovPerson(p); } catch { return `<tr><td>${p.name}</td><td colspan="3" class="none">生辰有誤，排不出盤</td></tr>`; }
-    return `<tr><td><button data-ov="${p.id}">${p.name}</button><small>${p.tag}${ovRel === '本人' ? '' : `・以${r.pn}立太極`}</small></td><td>${T(r.dx)}</td><td>${T(r.yr)}</td><td>${r.near.length ? r.near.map(x => `<span class="t">${x}</span>`).join('') : '<span class="none">—</span>'}</td></tr>`;
+    return `<tr><td><button data-ov="${p.id}">${p.name}</button><small>${p.tag}${ovRel === '本人' ? '' : `・以${r.pn}立太極`}</small>${r.chg ? `<span class="t chg">${r.chg}</span>` : ''}</td><td>${T(r.dx)}</td><td>${T(r.yr)}</td><td>${r.near.length ? r.near.map(x => `<span class="t">${x}</span>`).join('') : '<span class="none">—</span>'}</td></tr>`;
   }).join('');
   $('#ovbody').innerHTML = people.length ? `<table><tr><th>命主</th><th>大限要注意</th><th>流年要注意</th><th>近三個月<small>${NEXT3.map(([, m]) => MONTHS[m - 1]).join('、')}月</small></th></tr>${rows}</table>
     <div class="muted" style="font-size:12px;color:var(--muted);margin-top:6px">規則同盤下方「這個大限、這一年要注意」；可信度也一樣（感情、血光較可看；財運、小人偏多；健康偏弱）。近三個月＝從今天的農曆月起，只看月份掃描回測過的感情、血光，只列中、重，不跟著上面的年份換。看父母、配偶是用命主的盤立太極推，不是對方自己的盤。</div>`
@@ -9717,6 +9732,7 @@ $('#ov').addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t) return;
   if (t.dataset.ovy) { ovYear += +t.dataset.ovy; renderOv(); }
   if (t.dataset.ovclose != null) $('#ov').close();
+  if (t.dataset.ovpng != null) saveOvPng();
   if (t.dataset.ov) {
     const p = people.find(x => x.id === t.dataset.ov), r = ovPerson(p);
     load(p.id);
