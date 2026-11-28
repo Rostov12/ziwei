@@ -8675,6 +8675,9 @@ dialog::backdrop { background: #0007; }
 .flist small { color: var(--muted); }
 .key { font-size: 13px; line-height: 1.7; background: var(--bg); border-radius: 6px; padding: 6px 8px; margin: 4px 0 8px; }
 .lite small, .lite .muted, .lite .flist li:not(.hit) { display: none; }
+.dec10 { width: 100%; border-collapse: collapse; font-size: 12px; } .dec10 th, .dec10 td { text-align: left; padding: 3px; border-top: 1px dashed var(--line); vertical-align: top; }
+.dec10 tr.on { background: var(--bg); } .dec10 button { min-height: 28px; font-size: 12px; padding: 2px 6px; } .dec10 small { display: block; color: var(--muted); }
+.dec10 .t { display: inline-block; margin: 1px 2px 1px 0; padding: 0 4px; border-radius: 3px; } .dec10 .bad { background: #f2a65a; color: #3a1a00; } .dec10 .g1 { background: #b9dfb0; color: #123d0c; } .dec10 .g2 { background: #e2eedd; color: #3d5a35; } .dec10 .none { color: var(--muted); }
 .flist .say { font-size: 13px; line-height: 1.6; margin-top: 2px; }
 .flist .tag { font-size: 11px; padding: 0 4px; border-radius: 3px; background: #f2a65a; color: #3a1a00; }
 .scan .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
@@ -9364,41 +9367,42 @@ function yearGood(chart, year, opts = {}) {
   const good = [];
   // 好對象：流年官祿宮干飛祿或忌入流年命遷子福
   const gl = fly(stemOf(yAt('官祿')));
-  if (inY(gl.祿, ['命宮', '遷移', '子女', '福德']) || inY(gl.忌, ['命宮', '遷移', '子女', '福德'])) good.push(['感情', '有遇到好對象的機會']);
+  if (inY(gl.祿, ['命宮', '遷移', '子女', '福德']) || inY(gl.忌, ['命宮', '遷移', '子女', '福德'])) good.push(['感情', '有遇到好對象的機會', '桃花', 2]);
   // 結婚：大限有跡象（大夫妻有大限四化／大限命干化忌入大夫或本夫／大限命宮疊本命夫子田）＋流年命宮或夫官線見鸞喜
   if (ctx.dx) {
     const dh = fly(ctx.ds), dfq = at(ctx.dx.branch, '夫妻');
     const dOk = Object.values(dh).includes(dfq) || [dfq, at(ctx.chart.mingBranch, '夫妻')].includes(dh.忌) || ['夫妻', '子女', '田宅'].includes(nat[ctx.dx.branch]);
     const ln = [ys.branch, ...line(ys.branch, '夫妻')];
     const yOk = ctx.marks.some(x => x.k === '鸞喜' && ['本', '年'].includes(x.lay) && ln.includes(x.b));
-    if (dOk && yOk) good.push(['感情', '大限、流年都有結婚跡象']);
+    if (dOk && yOk) good.push(['感情', '大限、流年都有結婚跡象', '結婚', 1]);
   }
   // 事業：化權入流年命遷官＝升遷、主導權；化科入流年命官＝頭銜、考試；化祿入流年官＝工作機會；化祿入流年命財子田＝收入增加；權科入流年財＝適合自己掌控錢（創業、接案）
-  if (inY(yh.權, ['命宮', '遷移', '官祿'])) good.push(['工作', '有升遷、拿到主導權的機會']);
-  if (inY(yh.科, ['命宮', '官祿'])) good.push(['工作', '有頭銜、考試、比賽的好消息']);
-  if (inY(yh.祿, ['官祿'])) good.push(['工作', '工作機會變多']);
+  if (inY(yh.權, ['命宮', '遷移', '官祿'])) good.push(['工作', '有升遷、拿到主導權的機會', '升遷', 2]);
+  if (inY(yh.科, ['命宮', '官祿'])) good.push(['工作', '有頭銜、考試、比賽的好消息', '考試', 1]);
+  if (inY(yh.祿, ['官祿'])) good.push(['工作', '工作機會變多', '工作機會', 1]);
   // 財運（大耕「財福線」：祿在財帛＝賺到、福德＝有機會、子田＝存得下／加薪獎金；投資看流年財帛干飛祿入子田、官祿干飛祿入財福；創業看財帛化權）
   const ylu = [yh.祿, L.liunianStars(ys.stem, ys.branch).年祿];
-  if (ylu.some(b => inY(b, ['財帛']))) good.push(['財運', '錢流進來，有實際賺到的機會']);
-  if (ylu.some(b => inY(b, ['福德']))) good.push(['財運', '多了賺錢的管道和機會']);
-  if (ylu.some(b => inY(b, ['子女', '田宅']))) good.push(['財運', '存得下錢，也有加薪、獎金的機會']);
+  if (ylu.some(b => inY(b, ['財帛']))) good.push(['財運', '錢流進來，有實際賺到的機會', '進財', 1]);
+  if (ylu.some(b => inY(b, ['福德']))) good.push(['財運', '多了賺錢的管道和機會', '財源', 1]);
+  if (ylu.some(b => inY(b, ['子女', '田宅']))) good.push(['財運', '存得下錢，也有加薪、獎金的機會', '存錢', 1]);
   const natZT = [at(ctx.chart.mingBranch, '子女'), at(ctx.chart.mingBranch, '田宅'), yAt('子女'), yAt('田宅')];
-  if (natZT.includes(fly(stemOf(yAt('財帛'))).祿)) good.push(['財運', '投資有機會賺到、落袋']);
-  if ([at(ctx.chart.mingBranch, '財帛'), at(ctx.chart.mingBranch, '福德'), yAt('財帛'), yAt('福德')].includes(gl.祿)) good.push(['財運', '工作帶來賺錢的機會']);
-  if (inY(yh.權, ['財帛'])) good.push(['財運', '適合自己掌控金錢的事（創業、接案）']);
+  if (natZT.includes(fly(stemOf(yAt('財帛'))).祿)) good.push(['財運', '投資有機會賺到、落袋', '投資', 2]);
+  if ([at(ctx.chart.mingBranch, '財帛'), at(ctx.chart.mingBranch, '福德'), yAt('財帛'), yAt('福德')].includes(gl.祿)) good.push(['財運', '工作帶來賺錢的機會', '工作帶財', 2]);
+  if (inY(yh.權, ['財帛'])) good.push(['財運', '適合自己掌控金錢的事（創業、接案）', '創業', 1]);
   // 子女、買房（大耕「子田線」）：懷孕＝流年子田有鸞喜也有祿（否則空包彈），或子田有祿＋父疾有鸞喜；買房（貸款）＝子田線同時有煞忌與祿權
   const YL = ['大', '年'], on = (ln, ks) => ctx.marks.filter(x => ln.includes(x.b) && ks.includes(x.k) && YL.includes(x.lay));
   const zt = line(ys.branch, '子女'), fj = line(ys.branch, '疾厄');
   const age = year - L.birthSolar(chart).getFullYear() + 1;
   if (age <= 50 && ((on(zt, ['鸞喜']).length && on(zt, ['祿']).length) || (on(zt, ['祿']).length && on(fj, ['鸞喜']).length))) {
     const sha = on([yAt('子女'), yAt('田宅')], ['羊', '陀', '火鈴']).length;
-    good.push(['子女', `有懷孕、添丁的跡象${sha ? '（子田有煞，懷孕期間多留意、好好安胎）' : ''}`]);
+    good.push(['子女', `有懷孕、添丁的跡象${sha ? '（子田有煞，懷孕期間多留意、好好安胎）' : ''}`, '添丁', 1]);
   }
   if (on(zt, ['羊', '陀', '火鈴', '忌']).length && (on(zt, ['祿']).length || zt.includes(yh.權)))
-    good.push(['家', `有買房（貸款）的跡象${on(zt, ['陀']).length ? '；有陀羅，選房容易選錯，多比較' : ''}`]);
+    good.push(['家', `有買房（貸款）的跡象${on(zt, ['陀']).length ? '；有陀羅，選房容易選錯，多比較' : ''}`, '買房', 2]);
   // 運氣三盤（財福線：本命、大限、流年的福德宮各有沒有煞忌）
   const SJ = ['羊', '陀', '火鈴', '忌'], nSJ = (b, lays) => ctx.marks.filter(x => x.b === b && SJ.includes(x.k) && lays.includes(x.lay)).length;
   const luck = [nSJ(at(ctx.chart.mingBranch, '福德'), ['本']), ctx.dx ? nSJ(at(ctx.dx.branch, '福德'), ['本', '大']) : null, nSJ(yAt('福德'), ['本', '大', '年'])];
+  good.sort((a, b) => a[3] - b[3]); // 較可靠的排前面
   return { ji: nat[yh.忌], lu: nat[yh.祿], jiTopic: TOPIC[nat[yh.忌]], luSay: LU_SAY[nat[yh.祿]], good, luck };
 }
 // 感情較順的月份（推論，筆記沒有直接講）：流月夫官線見年或月層的祿或鸞喜，且感情掃描沒標
@@ -9637,11 +9641,24 @@ function focusTxt(S, dx, dxb, y, shift) {
 }
 $('#focus').addEventListener('click', async e => {
   if (e.target.closest('[data-flite]')) { lite = !lite; store.set('zw-lite', lite); renderFocus(); return; }
+  const dy = e.target.closest('[data-dy]'); if (dy) { Object.assign(sel, { year: +dy.dataset.dy, month: null, day: null, date: null }); render(); return; }
   const b = e.target.closest('[data-fcopy]'); if (!b) return;
   try { await navigator.clipboard.writeText(focusText); b.textContent = '已複製'; }
   catch { prompt('複製下面文字', focusText); }
   setTimeout(() => { b.textContent = '複製文字'; }, 1500);
 });
+// 大限十年一覽（昆鴻 11/28）：每年要注意＋好的方面短標，點年份跳過去
+function decadeHtml(dx, shift) {
+  const rows = L.yearsOfDaxian(chart, dx).map(yy => {
+    const S2 = SC.layerSigns(chart, yy, { ...SCAN_OPTS, shift }), G2 = SC.yearGood(chart, yy, { shift }).good;
+    const bad = Object.keys(FOCUS).filter(t => yrSg(t, S2[t])).map(t => `<span class="t bad">${SHORT_T[t]}</span>`).join('');
+    const good = (lite ? G2.filter(g => g[3] === 1) : G2).map(g => `<span class="t ${g[3] === 1 ? 'g1' : 'g2'}">${g[2]}</span>`).join('');
+    if (lite && !bad && !good) return '';
+    const gz = L.yearGZ(yy);
+    return `<tr${yy === sel.year ? ' class="on"' : ''}><th><button data-dy="${yy}">${yy}<small>${gz.stem}${gz.branch}</small></button></th><td>${bad || '<span class="none">—</span>'}</td><td>${good || '<span class="none">—</span>'}</td></tr>`;
+  }).join('');
+  return `<div class="fh" style="margin-top:8px">這個大限十年一覽</div><table class="dec10"><tr><th></th><th>要注意</th><th>好的方面</th></tr>${rows}</table>`;
+}
 let lite = store.get('zw-lite', false); // 客人版：只留白話（昆鴻 11/28）
 function renderFocus() {
   $('#focus').classList.toggle('lite', lite);
@@ -9675,13 +9692,16 @@ function renderFocus() {
   const MW = SC.moneyWay(chart, shift), luck = SC.luckTxt(YG.luck);
   const finBad = !!yrSg('財運', S.財運), finGood = YG.good.some(([k]) => k === '財運');
   const moneyTxt = `本命賺錢方式（財帛${MW.stars}${MW.borrow ? '，空宮借對宮' : ''}）：${MW.text}${luck ? `運氣：${luck}` : ''}${finBad && finGood ? '今年錢的事好壞同時存在，要切到月份才分得開（進場看財福有祿、出場看子田有祿）；財運月份掃描回測還沒過，請人工看流月。' : ''}`;
-  const goodTxt = [...YG.good.map(([k, v]) => `${k}：${v}`), gm.length ? `感情較順的月份（推論）：農曆${gm.map(m => MONTHS[m - 1]).join('、')}月` : ''].filter(Boolean);
+  // 客人版只留較可靠的（等級 1）前三條；沒有就給最前面一條（昆鴻 11/28：避免每年都報喜）
+  const gl = lite ? (YG.good.filter(g => g[3] === 1).slice(0, 3).length ? YG.good.filter(g => g[3] === 1).slice(0, 3) : YG.good.slice(0, 1)) : YG.good;
+  const goodTxt = [...gl.map(([k, v, , t]) => `${k}：${v}${t === 2 && !lite ? '（較常見）' : ''}`), gm.length ? `感情較順的月份（推論）：農曆${gm.map(m => MONTHS[m - 1]).join('、')}月` : ''].filter(Boolean);
   focusText = focusTxt(S, dx, dxb, y, shift) + `\n今年重點：${keyTxt}\n好的方面：${goodTxt.join('；') || '沒有特別標出'}\n${moneyTxt}`;
   el.innerHTML = `<h3><button class="fcopy" data-fcopy>複製文字</button><button class="fcopy" data-flite>${lite ? "完整版" : "客人版"}</button>這個大限、這一年要注意${shift ? `<small>　以${sel.tjLabel}立太極（看那個人）</small>` : ''}</h3>
     <div class="key"><b>今年重點</b>　${keyTxt}${goodTxt.length ? `<br><b>好的方面</b>　${goodTxt.join('；')}` : ''}<br><b>錢與運氣</b>　${moneyTxt}</div>
     <div class="fcols"><div><div class="fh">大限 ${palStem(dxb)}${dxb}（命主 ${dx.from}–${dx.to} 歲）</div><ul class="flist">${dxList}</ul></div>
     <div><div class="fh">流年 ${y} ${g.stem}${g.branch}</div><ul class="flist">${yList}</ul></div></div>
-    <div class="muted">看法：那條線上有兩顆以上煞忌（各主題細則同下方應期掃描），身體健康、血光意外要運限命宮走進本命父疾線才算。可信度：${Object.entries(FOCUS).map(([t, F]) => `${t}${F.trust}`).join('、')}。本命煞忌只當背景（身體健康例外：本命的也算進雙羊、雙陀）。</div>`;
+    <div class="muted">看法：那條線上有兩顆以上煞忌（各主題細則同下方應期掃描），身體健康、血光意外要運限命宮走進本命父疾線才算。可信度：${Object.entries(FOCUS).map(([t, F]) => `${t}${F.trust}`).join('、')}。本命煞忌只當背景（身體健康例外：本命的也算進雙羊、雙陀）。好的方面標「較常見」的，抽樣約三成以上年份都會出現。</div>
+    ${decadeHtml(dx, shift)}`;
 }
 const SCAN_OPTS = { natal: false };
 const SCAN = {
