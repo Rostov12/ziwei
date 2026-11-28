@@ -8674,6 +8674,7 @@ dialog::backdrop { background: #0007; }
 .flist li.hit b { color: var(--ji); }
 .flist small { color: var(--muted); }
 .key { font-size: 13px; line-height: 1.7; background: var(--bg); border-radius: 6px; padding: 6px 8px; margin: 4px 0 8px; }
+.lite small, .lite .muted, .lite .flist li:not(.hit) { display: none; }
 .flist .say { font-size: 13px; line-height: 1.6; margin-top: 2px; }
 .flist .tag { font-size: 11px; padding: 0 4px; border-radius: 3px; background: #f2a65a; color: #3a1a00; }
 .scan .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
@@ -8763,6 +8764,8 @@ dialog::backdrop { background: #0007; }
   <div class="ovhead"><b>合盤</b><select id="hpa" aria-label="第一位"></select>×<select id="hpb" aria-label="第二位"></select>
     <button data-hpy="-1" aria-label="前一年">◀</button><b id="hpy"></b><button data-hpy="1" aria-label="後一年">▶</button>
     <span class="sp"></span><button data-hpclose>關閉</button></div>
+  <div class="ovhead" style="font-size:13px">只知道對方出生年？<input id="tsy" type="number" inputmode="numeric" placeholder="西元年，如 1990" style="width:9em">看<b id="tsa"></b>的太歲入卦</div>
+  <div id="tsbody"></div>
   <div id="hpbody"></div>
 </dialog>
 <input type="file" id="file" accept=".json,application/json" hidden>
@@ -9351,6 +9354,8 @@ function chartTags(c) {
 // 好的方面＋今年重點（昆鴻 11/28；規則出自大耕筆記「夫官線」：哪一年有好對象、結婚、升官、跳槽、創業）
 const TOPIC = { 命宮: '自己的狀態與想法', 兄弟: '兄弟姊妹、合夥（也代表母親）', 夫妻: '感情與另一半', 子女: '小孩、桃花、外出', 財帛: '賺錢與花錢', 疾厄: '身體',
   遷移: '外出、在外的表現', 交友: '朋友同事', 官祿: '工作', 田宅: '家與房子', 福德: '心情、精神', 父母: '長輩、上司、文書' };
+const LU_SAY = { 命宮: '自己的狀態變好、想法變多', 兄弟: '兄弟姊妹、合夥（也代表母親）帶來助力', 夫妻: '感情與另一半有多出來的機會', 子女: '小孩、桃花、外出有好事', 財帛: '錢流進來',
+  疾厄: '身體與精力有餘裕，適合養生、運動', 遷移: '外出、在外的表現有機會', 交友: '朋友同事帶來機會', 官祿: '工作機會變多', 田宅: '家與房子有好事、存得下錢', 福德: '心情變好，也多了賺錢的機會', 父母: '長輩、上司、文書帶來幫助' };
 function yearGood(chart, year, opts = {}) {
   const ctx = shiftCtx(context(chart, year, 1), opts.shift || 0), ys = ctx.ys;
   const nat = L.namesFrom(ctx.chart.mingBranch), yn = L.namesFrom(ys.branch), yAt = n => at(ys.branch, n);
@@ -9381,16 +9386,26 @@ function yearGood(chart, year, opts = {}) {
   if (natZT.includes(fly(stemOf(yAt('財帛'))).祿)) good.push(['財運', '投資有機會賺到、落袋']);
   if ([at(ctx.chart.mingBranch, '財帛'), at(ctx.chart.mingBranch, '福德'), yAt('財帛'), yAt('福德')].includes(gl.祿)) good.push(['財運', '工作帶來賺錢的機會']);
   if (inY(yh.權, ['財帛'])) good.push(['財運', '適合自己掌控金錢的事（創業、接案）']);
+  // 子女、買房（大耕「子田線」）：懷孕＝流年子田有鸞喜也有祿（否則空包彈），或子田有祿＋父疾有鸞喜；買房（貸款）＝子田線同時有煞忌與祿權
+  const YL = ['大', '年'], on = (ln, ks) => ctx.marks.filter(x => ln.includes(x.b) && ks.includes(x.k) && YL.includes(x.lay));
+  const zt = line(ys.branch, '子女'), fj = line(ys.branch, '疾厄');
+  const age = year - L.birthSolar(chart).getFullYear() + 1;
+  if (age <= 50 && ((on(zt, ['鸞喜']).length && on(zt, ['祿']).length) || (on(zt, ['祿']).length && on(fj, ['鸞喜']).length))) {
+    const sha = on([yAt('子女'), yAt('田宅')], ['羊', '陀', '火鈴']).length;
+    good.push(['子女', `有懷孕、添丁的跡象${sha ? '（子田有煞，懷孕期間多留意、好好安胎）' : ''}`]);
+  }
+  if (on(zt, ['羊', '陀', '火鈴', '忌']).length && (on(zt, ['祿']).length || zt.includes(yh.權)))
+    good.push(['家', `有買房（貸款）的跡象${on(zt, ['陀']).length ? '；有陀羅，選房容易選錯，多比較' : ''}`]);
   // 運氣三盤（財福線：本命、大限、流年的福德宮各有沒有煞忌）
   const SJ = ['羊', '陀', '火鈴', '忌'], nSJ = (b, lays) => ctx.marks.filter(x => x.b === b && SJ.includes(x.k) && lays.includes(x.lay)).length;
   const luck = [nSJ(at(ctx.chart.mingBranch, '福德'), ['本']), ctx.dx ? nSJ(at(ctx.dx.branch, '福德'), ['本', '大']) : null, nSJ(yAt('福德'), ['本', '大', '年'])];
-  return { ji: nat[yh.忌], lu: nat[yh.祿], jiTopic: TOPIC[nat[yh.忌]], luTopic: TOPIC[nat[yh.祿]], good, luck };
+  return { ji: nat[yh.忌], lu: nat[yh.祿], jiTopic: TOPIC[nat[yh.忌]], luSay: LU_SAY[nat[yh.祿]], good, luck };
 }
 // 感情較順的月份（推論，筆記沒有直接講）：流月夫官線見年或月層的祿或鸞喜，且感情掃描沒標
 function goodMonths(chart, year, opts = {}) {
   return Array.from({ length: 12 }, (_, i) => i + 1).filter(m => {
     const ctx = shiftCtx(context(chart, year, m), opts.shift || 0), ln = line(ctx.mb, '夫妻');
-    return ctx.marks.some(x => ['祿', '鸞喜'].includes(x.k) && ['年', '月'].includes(x.lay) && ln.includes(x.b)) && scanMonth(ctx, '感情婚姻', opts).level === 0;
+    return ctx.marks.some(x => x.k === '祿' && x.lay === '月' && ln.includes(x.b)) && scanMonth(ctx, '感情婚姻', opts).level === 0;
   });
 }
 
@@ -9419,7 +9434,16 @@ function moneyWay(chart, shift = 0) {
   return { stars: ms.join(''), borrow, text: ms.map(n => MONEY[n]).filter(Boolean).join('；') + '。' + rich + plus };
 }
 
-return { context, THEME_NAMES, scanMonth, scanYear, shiftCtx, layerSigns, chartTags, yearGood, goodMonths, luckTxt, moneyWay };
+// 太歲入卦（大耕「太歲入卦」＋財福線評估合夥）：只知道對方出生年時，用對方生肖地支、生年天干的四化與祿羊陀套在我的本命盤
+function taisui(chart, year) {
+  const g = L.yearGZ(year), nm = L.namesFrom(chart.mingBranch), fly = h => L.starBranch(chart, SIHUA_TABLE[g.stem][h]);
+  const s = L.liunianStars(g.stem, g.branch), hua = Object.fromEntries(['祿', '權', '科', '忌'].map(h => [h, { star: SIHUA_TABLE[g.stem][h], pal: nm[fly(h)] }]));
+  const risky = ['財帛', '福德', '子女', '田宅', '命宮', '遷移'].includes(hua.忌.pal);
+  const worse = ['天相', '巨門', '太陽', '廉貞', '天機', '文昌'].includes(hua.忌.star);
+  return { gz: g.stem + g.branch, pos: nm[g.branch], hua, lu: nm[s.年祿], yang: nm[s.年羊], tuo: nm[s.年陀], risky, worse };
+}
+
+return { context, THEME_NAMES, scanMonth, scanYear, shiftCtx, layerSigns, chartTags, yearGood, goodMonths, luckTxt, moneyWay, taisui };
 })();
 
 const $ = s => document.querySelector(s);
@@ -9612,12 +9636,15 @@ function focusTxt(S, dx, dxb, y, shift) {
     `※ 排盤程式依筆記規則機械判讀；可信度：${Object.entries(FOCUS).map(([t, F]) => `${t}${F.trust}`).join('、')}。寫給人看前請人工看盤、先問現況。`].join('\n');
 }
 $('#focus').addEventListener('click', async e => {
+  if (e.target.closest('[data-flite]')) { lite = !lite; store.set('zw-lite', lite); renderFocus(); return; }
   const b = e.target.closest('[data-fcopy]'); if (!b) return;
   try { await navigator.clipboard.writeText(focusText); b.textContent = '已複製'; }
   catch { prompt('複製下面文字', focusText); }
   setTimeout(() => { b.textContent = '複製文字'; }, 1500);
 });
+let lite = store.get('zw-lite', false); // 客人版：只留白話（昆鴻 11/28）
 function renderFocus() {
+  $('#focus').classList.toggle('lite', lite);
   const el = $('#focus');
   const dx = sel.dx !== 'tong' && sel.dx != null ? L.daxianList(chart)[sel.dx] : null;
   const y = sel.year || (dx ? L.yearsOfDaxian(chart, dx)[0] : null);
@@ -9644,13 +9671,13 @@ function renderFocus() {
   const chg = dk(age) !== dk(age - 1) ? '今年進新大限，是十年一次的轉折。' : dk(age + 1) !== dk(age) ? '明年換大限，今年適合收尾、準備下一階段。' : '';
   // 化忌進財帛照財福線筆記：一顆忌＝敢拚可能賺更多，兩顆以上煞忌才算破財
   const jiSay = YG.ji === '財帛' ? '對錢特別在意、敢拚，可能賺更多，但花錢投資別失控' : `${YG.jiTopic}最容易卡住、放不下`;
-  const keyTxt = `今年化忌進本命${YG.ji}：${jiSay}；化祿進本命${YG.lu}：${YG.luTopic}有多出來的機會，可以拿來補。${chg}`;
+  const keyTxt = `今年化忌進本命${YG.ji}：${jiSay}；化祿進本命${YG.lu}：${YG.luSay}，可以拿來補。${chg}`;
   const MW = SC.moneyWay(chart, shift), luck = SC.luckTxt(YG.luck);
   const finBad = !!yrSg('財運', S.財運), finGood = YG.good.some(([k]) => k === '財運');
   const moneyTxt = `本命賺錢方式（財帛${MW.stars}${MW.borrow ? '，空宮借對宮' : ''}）：${MW.text}${luck ? `運氣：${luck}` : ''}${finBad && finGood ? '今年錢的事好壞同時存在，要切到月份才分得開（進場看財福有祿、出場看子田有祿）；財運月份掃描回測還沒過，請人工看流月。' : ''}`;
   const goodTxt = [...YG.good.map(([k, v]) => `${k}：${v}`), gm.length ? `感情較順的月份（推論）：農曆${gm.map(m => MONTHS[m - 1]).join('、')}月` : ''].filter(Boolean);
   focusText = focusTxt(S, dx, dxb, y, shift) + `\n今年重點：${keyTxt}\n好的方面：${goodTxt.join('；') || '沒有特別標出'}\n${moneyTxt}`;
-  el.innerHTML = `<h3><button class="fcopy" data-fcopy>複製文字</button>這個大限、這一年要注意${shift ? `<small>　以${sel.tjLabel}立太極（看那個人）</small>` : ''}</h3>
+  el.innerHTML = `<h3><button class="fcopy" data-fcopy>複製文字</button><button class="fcopy" data-flite>${lite ? "完整版" : "客人版"}</button>這個大限、這一年要注意${shift ? `<small>　以${sel.tjLabel}立太極（看那個人）</small>` : ''}</h3>
     <div class="key"><b>今年重點</b>　${keyTxt}${goodTxt.length ? `<br><b>好的方面</b>　${goodTxt.join('；')}` : ''}<br><b>錢與運氣</b>　${moneyTxt}</div>
     <div class="fcols"><div><div class="fh">大限 ${palStem(dxb)}${dxb}（命主 ${dx.from}–${dx.to} 歲）</div><ul class="flist">${dxList}</ul></div>
     <div><div class="fh">流年 ${y} ${g.stem}${g.branch}</div><ul class="flist">${yList}</ul></div></div>
@@ -9900,7 +9927,22 @@ function hpSide(a, b, ca, cb) {
     <p>${a.name}的命宮落在${b.name}的<b>${pos}</b>${HP_POS[pos] ? `：${HP_POS[pos]}` : ''}</p>
     <p>${a.name}的生年四化落在${b.name}盤上：${fly.map(([h, s, pn]) => `化${h}${s}→<b>${pn}</b>${say[h] ? `（${say[h]}）` : ''}`).join('；')}</p>`;
 }
+// 太歲入卦（昆鴻 11/28）：沒有對方完整生辰時，用對方出生年套在第一位的本命盤
+function renderTs() {
+  const a = people.find(p => p.id === hpA), y = +$('#tsy').value; $('#tsa').textContent = a?.name || '';
+  if (!a || !(y > 1900 && y < 2100)) { $('#tsbody').innerHTML = ''; return; }
+  const t = SC.taisui(chartOf(a), y), h = t.hua;
+  $('#tsbody').innerHTML = `<h4>太歲入卦：${y} 年（${t.gz}，屬${'鼠牛虎兔龍蛇馬羊猴雞狗豬'['子丑寅卯辰巳午未申酉戌亥'.indexOf(t.gz[1])]}）的人 → ${a.name}</h4>
+    <p>對方落在${a.name}盤的<b>${t.pos}</b>：在${a.name}心裡，這個人跟「${TOPIC_APP[t.pos]}」有關。</p>
+    <p>對方的生年四化進${a.name}的盤：化祿${h.祿.star}→<b>${h.祿.pal}</b>（帶給你的）；化權${h.權.star}→${h.權.pal}；化科${h.科.star}→${h.科.pal}；化忌${h.忌.star}→<b>${h.忌.pal}</b>（讓你最在意、最操心的）。祿存在${t.lu}，羊陀在${t.yang}、${t.tuo}（容易摩擦的地方）。</p>
+    ${t.risky ? `<p><b>合作、借錢要小心</b>：對方的化忌進你的${h.忌.pal}${t.worse ? `，而且是${h.忌.star}化忌（筆記：這幾顆化忌入我更不可以）` : ''}。</p>` : ''}
+    <p class="muted">國曆 1、2 月（立春前）出生的人要用前一年。這是「你心中的他」，不是對方本人的命盤；有完整生辰就用上面的合盤。</p>`;
+}
+const TOPIC_APP = { 命宮: '你自己、你的個性', 兄弟: '兄弟姊妹、合夥、母親', 夫妻: '感情與另一半', 子女: '小孩、桃花、外出', 財帛: '賺錢與花錢', 疾厄: '身體、日常相處',
+  遷移: '外出、你在外的表現', 交友: '朋友同事', 官祿: '工作', 田宅: '家與房子', 福德: '心情、精神寄託', 父母: '長輩、上司、文書' };
+$('#tsy').addEventListener('input', renderTs);
 function renderHp() {
+  renderTs();
   const opts = id => groupTags().map(([t, ps]) => `<optgroup label="${t}">${ps.map(p => `<option value="${p.id}"${p.id === id ? ' selected' : ''}>${p.name}</option>`).join('')}</optgroup>`).join('');
   $('#hpa').innerHTML = opts(hpA); $('#hpb').innerHTML = opts(hpB);
   const g = L.yearGZ(hpYear); $('#hpy').textContent = `${hpYear} ${g.stem}${g.branch}`;
