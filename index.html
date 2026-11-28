@@ -9651,11 +9651,13 @@ $('#focus').addEventListener('click', async e => {
   setTimeout(() => { b.textContent = '複製文字'; }, 1500);
 });
 // 大限十年一覽（昆鴻 11/28）：每年要注意＋好的方面短標，點年份跳過去
+// 客人版不顯示：回測太弱（懷孕生子 11/28：家人 4 筆真實生產只抓到 2 筆）
+const HIDE_LITE = ['懷孕生子'];
 function decadeHtml(dx, shift) {
   const rows = L.yearsOfDaxian(chart, dx).map(yy => {
     const S2 = SC.layerSigns(chart, yy, { ...SCAN_OPTS, shift }), G2 = SC.yearGood(chart, yy, { shift }).good;
     const bad = Object.keys(FOCUS).filter(t => yrSg(t, S2[t])).map(t => `<span class="t bad">${SHORT_T[t]}</span>`).join('');
-    const good = (lite ? G2.filter(g => g[3] === 1) : G2).map(g => `<span class="t ${g[3] === 1 ? 'g1' : 'g2'}">${g[2]}</span>`).join('');
+    const good = (lite ? G2.filter(g => g[3] === 1 && !HIDE_LITE.includes(g[2])) : G2).map(g => `<span class="t ${g[3] === 1 ? 'g1' : 'g2'}">${g[2]}</span>`).join('');
     if (lite && !bad && !good) return '';
     const gz = L.yearGZ(yy);
     return `<tr${yy === sel.year ? ' class="on"' : ''}><th><button data-dy="${yy}">${yy}<small>${gz.stem}${gz.branch}</small></button></th><td>${bad || '<span class="none">—</span>'}</td><td>${good || '<span class="none">—</span>'}</td></tr>`;
@@ -9696,7 +9698,7 @@ function renderFocus() {
   const finBad = !!yrSg('財運', S.財運), finGood = YG.good.some(([k]) => k === '財運');
   const moneyTxt = `本命賺錢方式（財帛${MW.stars}${MW.borrow ? '，空宮借對宮' : ''}）：${MW.text}${luck ? `運氣：${luck}` : ''}${finBad && finGood ? '今年錢的事好壞同時存在，要切到月份才分得開（進場看財福有祿、出場看子田有祿）；財運月份掃描回測還沒過，請人工看流月。' : ''}`;
   // 客人版只留較可靠的（等級 1）前三條；沒有就給最前面一條（昆鴻 11/28：避免每年都報喜）
-  const gl = lite ? (YG.good.filter(g => g[3] === 1).slice(0, 3).length ? YG.good.filter(g => g[3] === 1).slice(0, 3) : YG.good.slice(0, 1)) : YG.good;
+  const gs = YG.good.filter(g => !HIDE_LITE.includes(g[2])), gl = lite ? (gs.filter(g => g[3] === 1).slice(0, 3).length ? gs.filter(g => g[3] === 1).slice(0, 3) : gs.slice(0, 1)) : YG.good;
   const goodTxt = [...gl.map(([k, v, , t]) => `${k}：${v}${t === 2 && !lite ? '（較常見）' : ''}`), gm.length ? `感情較順的月份（推論）：農曆${gm.map(m => MONTHS[m - 1]).join('、')}月` : ''].filter(Boolean);
   focusText = focusTxt(S, dx, dxb, y, shift) + `\n今年重點：${keyTxt}\n好的方面：${goodTxt.join('；') || '沒有特別標出'}\n${moneyTxt}`;
   el.innerHTML = `<h3><button class="fcopy" data-fcopy>複製文字</button><button class="fcopy" data-flite>${lite ? "完整版" : "客人版"}</button>這個大限、這一年要注意${shift ? `<small>　以${sel.tjLabel}立太極（看那個人）</small>` : ''}</h3>
