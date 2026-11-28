@@ -9372,9 +9372,19 @@ function yearGood(chart, year, opts = {}) {
   if (inY(yh.權, ['命宮', '遷移', '官祿'])) good.push(['工作', '有升遷、拿到主導權的機會']);
   if (inY(yh.科, ['命宮', '官祿'])) good.push(['工作', '有頭銜、考試、比賽的好消息']);
   if (inY(yh.祿, ['官祿'])) good.push(['工作', '工作機會變多']);
-  if (inY(yh.祿, ['命宮', '財帛', '子女', '田宅'])) good.push(['財運', '收入有增加的機會']);
-  if (inY(yh.權, ['財帛']) || inY(yh.科, ['財帛'])) good.push(['財運', '適合自己掌控金錢的事（創業、接案）']);
-  return { ji: nat[yh.忌], lu: nat[yh.祿], jiTopic: TOPIC[nat[yh.忌]], luTopic: TOPIC[nat[yh.祿]], good };
+  // 財運（大耕「財福線」：祿在財帛＝賺到、福德＝有機會、子田＝存得下／加薪獎金；投資看流年財帛干飛祿入子田、官祿干飛祿入財福；創業看財帛化權）
+  const ylu = [yh.祿, L.liunianStars(ys.stem, ys.branch).年祿];
+  if (ylu.some(b => inY(b, ['財帛']))) good.push(['財運', '錢流進來，有實際賺到的機會']);
+  if (ylu.some(b => inY(b, ['福德']))) good.push(['財運', '多了賺錢的管道和機會']);
+  if (ylu.some(b => inY(b, ['子女', '田宅']))) good.push(['財運', '存得下錢，也有加薪、獎金的機會']);
+  const natZT = [at(ctx.chart.mingBranch, '子女'), at(ctx.chart.mingBranch, '田宅'), yAt('子女'), yAt('田宅')];
+  if (natZT.includes(fly(stemOf(yAt('財帛'))).祿)) good.push(['財運', '投資有機會賺到、落袋']);
+  if ([at(ctx.chart.mingBranch, '財帛'), at(ctx.chart.mingBranch, '福德'), yAt('財帛'), yAt('福德')].includes(gl.祿)) good.push(['財運', '工作帶來賺錢的機會']);
+  if (inY(yh.權, ['財帛'])) good.push(['財運', '適合自己掌控金錢的事（創業、接案）']);
+  // 運氣三盤（財福線：本命、大限、流年的福德宮各有沒有煞忌）
+  const SJ = ['羊', '陀', '火鈴', '忌'], nSJ = (b, lays) => ctx.marks.filter(x => x.b === b && SJ.includes(x.k) && lays.includes(x.lay)).length;
+  const luck = [nSJ(at(ctx.chart.mingBranch, '福德'), ['本']), ctx.dx ? nSJ(at(ctx.dx.branch, '福德'), ['本', '大']) : null, nSJ(yAt('福德'), ['本', '大', '年'])];
+  return { ji: nat[yh.忌], lu: nat[yh.祿], jiTopic: TOPIC[nat[yh.忌]], luTopic: TOPIC[nat[yh.祿]], good, luck };
 }
 // 感情較順的月份（推論，筆記沒有直接講）：流月夫官線見年或月層的祿或鸞喜，且感情掃描沒標
 function goodMonths(chart, year, opts = {}) {
@@ -9384,7 +9394,32 @@ function goodMonths(chart, year, opts = {}) {
   });
 }
 
-return { context, THEME_NAMES, scanMonth, scanYear, shiftCtx, layerSigns, chartTags, yearGood, goodMonths };
+// 運氣三盤白話（大耕「財福線」運氣段）；[本命, 大限, 流年] 煞忌數，大限 null＝童限
+function luckTxt([a, b, c]) {
+  if (b == null) return '';
+  const o = [a, b, c].map(n => n === 0);
+  if (o.every(Boolean)) return '本命、大限、流年的福德宮都乾淨：運氣很好。';
+  if ([a, b, c].every(n => n >= 2)) return '三張盤的福德宮都有兩顆以上煞忌：比較辛苦，多做善事、助人來增旺福德。';
+  if ([a, b, c].every(n => n >= 1)) return '三張盤的福德宮都有煞忌：意志力很強，靠自己撐得住。';
+  const k = o.map(x => x ? 'O' : 'X').join('');
+  return { OOX: '天生和這個大限運氣不錯，只是今年比較不順。', OXO: '這個大限運氣比較差，但今年過得去。', XOO: '天生運氣普通，但這個大限還不錯。',
+    OXX: '天生運氣不錯，但這個大限和今年都比較不順。', XOX: '這個大限運氣不錯，本命和今年比較不順。', XXO: '本命和這個大限比較辛苦，今年反而過得去。' }[k];
+}
+// 本命賺錢方式（大耕「財福線」各星重點，昆鴻筆記）：財帛主星；空宮借對宮
+const MONEY = { 紫微: '花錢、理財都要與眾不同，買東西要讓人讚嘆', 天機: '花錢賺錢前會先做功課，也愛嘗試新事物', 太陽: '用錢大方，用錢維護地位，也想靠名望賺錢',
+  天同: '對錢隨性不計較，好人緣會帶來別人分享的賺錢機會', 武曲: '重 CP 值、務實，喜歡把錢掌控好', 廉貞: '錢花在拓展人脈、新奇體驗上', 天府: '為需求縝密籌畫布局，重實際拿得到的錢',
+  太陰: '善於儲蓄，沒存款會沒安全感；也愛照顧家人朋友', 貪狼: '什麼賺錢機會都願意試，也愛學各種能力', 巨門: '靠收集財富填補不安全感，適合用溝通、說話賺錢',
+  天相: '錢花在提升品味上，理財照計畫，適合穩定的證券或出租收益', 天梁: '用錢大方，願意幫助照顧別人', 七殺: '對用錢有自己的堅持', 破軍: '勇敢花錢追夢想，喜歡買特別的東西；運好有機會，但較常碰到煞忌' };
+function moneyWay(chart, shift = 0) {
+  const m = B[(bi(chart.mingBranch) + shift) % 12], b = at(m, '財帛');
+  let ms = chart.palaces[bi(b)].stars.filter(x => x.type === 'main').map(x => x.name), borrow = false;
+  if (!ms.length) { ms = chart.palaces[bi(L.opposite(b))].stars.filter(x => x.type === 'main').map(x => x.name); borrow = true; }
+  const st = chart.palaces[bi(b)].stars, plus = st.some(x => x.name === '祿存' || x.sihua === '祿') ? '財帛有祿，賺錢能力加分。' : '';
+  const rich = ms.some(n => ['武曲', '天府', '太陰'].includes(n)) ? '財帛有財星，本身就比較會賺錢。' : '';
+  return { stars: ms.join(''), borrow, text: ms.map(n => MONEY[n]).filter(Boolean).join('；') + '。' + rich + plus };
+}
+
+return { context, THEME_NAMES, scanMonth, scanYear, shiftCtx, layerSigns, chartTags, yearGood, goodMonths, luckTxt, moneyWay };
 })();
 
 const $ = s => document.querySelector(s);
@@ -9607,11 +9642,16 @@ function renderFocus() {
   const g = L.yearGZ(y), YG = SC.yearGood(chart, y, { shift }), gm = SC.goodMonths(chart, y, { ...SCAN_OPTS, shift });
   const age = y - L.birthSolar(chart).getFullYear() + 1, dk = a => L.daxianAt(chart, a)?.k;
   const chg = dk(age) !== dk(age - 1) ? '今年進新大限，是十年一次的轉折。' : dk(age + 1) !== dk(age) ? '明年換大限，今年適合收尾、準備下一階段。' : '';
-  const keyTxt = `今年化忌進本命${YG.ji}：${YG.jiTopic}最容易卡住、放不下；化祿進本命${YG.lu}：${YG.luTopic}有多出來的機會，可以拿來補。${chg}`;
+  // 化忌進財帛照財福線筆記：一顆忌＝敢拚可能賺更多，兩顆以上煞忌才算破財
+  const jiSay = YG.ji === '財帛' ? '對錢特別在意、敢拚，可能賺更多，但花錢投資別失控' : `${YG.jiTopic}最容易卡住、放不下`;
+  const keyTxt = `今年化忌進本命${YG.ji}：${jiSay}；化祿進本命${YG.lu}：${YG.luTopic}有多出來的機會，可以拿來補。${chg}`;
+  const MW = SC.moneyWay(chart, shift), luck = SC.luckTxt(YG.luck);
+  const finBad = !!yrSg('財運', S.財運), finGood = YG.good.some(([k]) => k === '財運');
+  const moneyTxt = `本命賺錢方式（財帛${MW.stars}${MW.borrow ? '，空宮借對宮' : ''}）：${MW.text}${luck ? `運氣：${luck}` : ''}${finBad && finGood ? '今年錢的事好壞同時存在，要切到月份才分得開（進場看財福有祿、出場看子田有祿）；財運月份掃描回測還沒過，請人工看流月。' : ''}`;
   const goodTxt = [...YG.good.map(([k, v]) => `${k}：${v}`), gm.length ? `感情較順的月份（推論）：農曆${gm.map(m => MONTHS[m - 1]).join('、')}月` : ''].filter(Boolean);
-  focusText = focusTxt(S, dx, dxb, y, shift) + `\n今年重點：${keyTxt}\n好的方面：${goodTxt.join('；') || '沒有特別標出'}`;
+  focusText = focusTxt(S, dx, dxb, y, shift) + `\n今年重點：${keyTxt}\n好的方面：${goodTxt.join('；') || '沒有特別標出'}\n${moneyTxt}`;
   el.innerHTML = `<h3><button class="fcopy" data-fcopy>複製文字</button>這個大限、這一年要注意${shift ? `<small>　以${sel.tjLabel}立太極（看那個人）</small>` : ''}</h3>
-    <div class="key"><b>今年重點</b>　${keyTxt}${goodTxt.length ? `<br><b>好的方面</b>　${goodTxt.join('；')}` : ''}</div>
+    <div class="key"><b>今年重點</b>　${keyTxt}${goodTxt.length ? `<br><b>好的方面</b>　${goodTxt.join('；')}` : ''}<br><b>錢與運氣</b>　${moneyTxt}</div>
     <div class="fcols"><div><div class="fh">大限 ${palStem(dxb)}${dxb}（命主 ${dx.from}–${dx.to} 歲）</div><ul class="flist">${dxList}</ul></div>
     <div><div class="fh">流年 ${y} ${g.stem}${g.branch}</div><ul class="flist">${yList}</ul></div></div>
     <div class="muted">看法：那條線上有兩顆以上煞忌（各主題細則同下方應期掃描），身體健康、血光意外要運限命宮走進本命父疾線才算。可信度：${Object.entries(FOCUS).map(([t, F]) => `${t}${F.trust}`).join('、')}。本命煞忌只當背景（身體健康例外：本命的也算進雙羊、雙陀）。</div>`;
