@@ -9505,9 +9505,18 @@ const ADV = {
   小人是非: '合約講清楚、白紙黑字；不在背後談人，也別替人作保背書。',
   身體健康: '按時健檢，小毛病早點看醫生，別硬撐。',
 };
+// 依碰到的星換建議（昆鴻 11/28）；沒對到的星用上面那句通用建議
+const ADV_K = {
+  感情婚姻: { 羊: '吵架時先停三秒，別用重話硬碰硬', 陀: '別冷戰、別悶著拖，有不滿當天講開', 火鈴: '情緒上來先離開現場，別衝動做決定', 忌: '別鑽牛角尖翻舊帳，放下想掌控的心', 鸞喜: '有新緣分或喜事是好事，有伴的人守好界線' },
+  血光意外: { 羊: '用刀、運動、工地這類尖銳場合多小心', 陀: '舊傷、痠痛別拖，該復健就復健', 火鈴: '防燙傷，開車騎車別趕時間', 忌: '身體不對勁別硬撐，早點檢查', 鸞喜: '開刀、生產、拔牙這類見血的事提早安排好' },
+  財運: { 羊: '別一時衝動加碼或跟人搶', 陀: '錢可能慢進、被卡住，預留周轉時間', 火鈴: '別追熱門短線、快進快出', 忌: '借錢、作保最容易收不回，先說不', 鸞喜: '喜事花費多，先抓預算' },
+  小人是非: { 羊: '有衝突別當面硬槓，留紀錄、走正式管道', 陀: '拖著沒處理的人情帳、糾紛早點收尾', 火鈴: '群組、社群發言前先冷靜，別說氣話', 忌: '不替人背書、不介入別人的是非', 鸞喜: '應酬多，注意交淺言深' },
+  身體健康: { 羊: '留意發炎、外傷，運動量力而為', 陀: '慢性病、筋骨痠痛要規律保養，別拖', 火鈴: '少熬夜、少上火，留意發燒急症', 忌: '放在心上的老毛病，該回診就回診', 鸞喜: '血液、婦科相關的檢查照時間做' },
+};
 function sayTxt(t, sg, lay, months) {
-  const F = FOCUS[t], ks = [...new Set(sg.c.list.map(x => x.k).filter(k => PLAIN[k]))].map(k => PLAIN[k]).join('、');
-  return `${lay === '大限' ? '這十年' : '這一年'}管${HUMAN[t]}的位置碰到${ks}，容易有${F.what}${sg.note && !/四馬地|對拱/.test(sg.note) ? `（${sg.note}）` : ''}。${months?.length ? `比較要留意農曆${months.map(m => MONTHS[m - 1]).join('、')}月。` : ''}建議：${ADV[t]}`;
+  const F = FOCUS[t], kk = [...new Set(sg.c.list.map(x => x.k).filter(k => PLAIN[k]))], ks = kk.map(k => PLAIN[k]).join('、');
+  const tips = kk.map(k => ADV_K[t][k]).filter(Boolean);
+  return `${lay === '大限' ? '這十年' : '這一年'}管${HUMAN[t]}的位置碰到${ks}，容易有${F.what}${sg.note && !/四馬地|對拱/.test(sg.note) ? `（${sg.note}）` : ''}。${months?.length ? `比較要留意農曆${months.map(m => MONTHS[m - 1]).join('、')}月。` : ''}建議：${tips.length ? tips.join('；') + '。' : ADV[t]}`;
 }
 // 流年那一層：感情、血光才有月份掃描（回測過），列中、重的月
 const hotMonths = (t, y, shift) => SCAN[t] ? Array.from({ length: 12 }, (_, i) => i + 1).filter(m => SC.scanMonth(SC.shiftCtx(SC.context(chart, y, m), shift), t, SCAN_OPTS).level >= 2) : [];
